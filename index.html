@@ -12,7 +12,7 @@
     <title>Entropy Chamber</title>
   </head>
   <body>
-    <div class="app">
+    <div class="app" id="app-root">
       <aside class="panel" id="panel">
         <header class="panel__head">
           <h1 class="wordmark">
@@ -65,9 +65,20 @@
               </p>
             </div>
 
-            <div class="pane is-hidden" id="pane-file" role="tabpanel" aria-labelledby="tab-file" hidden>
+            <div
+              class="pane is-hidden"
+              id="pane-file"
+              role="tabpanel"
+              aria-labelledby="tab-file"
+              hidden
+            >
               <div class="drop" id="drop">
-                <input class="sr-only" type="file" id="file" accept=".csv,.tsv,.txt,text/csv,text/plain" />
+                <input
+                  class="sr-only"
+                  type="file"
+                  id="file"
+                  accept=".csv,.tsv,.txt,text/csv,text/plain"
+                />
                 <label class="drop__label" for="file">
                   <span class="drop__icon" aria-hidden="true">&#8681;</span>
                   <span class="drop__main">Drop a CSV or TSV</span>
@@ -99,7 +110,12 @@
             <div class="field field--row">
               <label class="field__label" for="count">Winners</label>
               <div class="stepper">
-                <button class="stepper__btn" id="count-down" type="button" aria-label="One fewer winner">
+                <button
+                  class="stepper__btn"
+                  id="count-down"
+                  type="button"
+                  aria-label="One fewer winner"
+                >
                   &minus;
                 </button>
                 <input
@@ -111,7 +127,12 @@
                   value="1"
                   inputmode="numeric"
                 />
-                <button class="stepper__btn" id="count-up" type="button" aria-label="One more winner">
+                <button
+                  class="stepper__btn"
+                  id="count-up"
+                  type="button"
+                  aria-label="One more winner"
+                >
                   +
                 </button>
               </div>
@@ -162,11 +183,18 @@
       </aside>
 
       <main class="stage">
-        <canvas id="chamber" class="stage__canvas" role="img" aria-label="Particle chamber"></canvas>
+        <canvas
+          id="chamber"
+          class="stage__canvas"
+          role="img"
+          aria-label="Particle chamber"
+        ></canvas>
 
         <div class="stage__overlay">
           <div class="verdict" id="verdict" aria-hidden="true"></div>
         </div>
+
+        <p class="stage__status" id="stage-status">add entries to begin</p>
 
         <div class="stage__controls">
           <button class="btn btn--primary" id="draw" type="button" disabled>

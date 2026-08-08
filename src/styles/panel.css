@@ -104,7 +104,9 @@
   padding: 4px 10px;
   border-radius: 5px;
   cursor: pointer;
-  transition: color 140ms, background 140ms;
+  transition:
+    color 140ms,
+    background 140ms;
 }
 
 .seg__btn:hover {
@@ -179,7 +181,9 @@
   border: 1px dashed var(--line-strong);
   border-radius: var(--r-md);
   background: var(--bg-sunken);
-  transition: border-color 140ms, background 140ms;
+  transition:
+    border-color 140ms,
+    background 140ms;
 }
 
 .drop:hover,
@@ -255,10 +259,15 @@
   font-family: var(--font-mono);
   font-size: 12px;
   cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%),
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%),
     linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
-  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
-  background-size: 5px 5px, 5px 5px;
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 9px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
   background-repeat: no-repeat;
 }
 
@@ -286,7 +295,9 @@
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: background 140ms, border-color 140ms;
+  transition:
+    background 140ms,
+    border-color 140ms;
 }
 
 .check input:checked {
@@ -333,7 +344,9 @@
   height: 30px;
   font-size: 14px;
   cursor: pointer;
-  transition: background 140ms, color 140ms;
+  transition:
+    background 140ms,
+    color 140ms;
 }
 
 .stepper__btn:hover:not(:disabled) {
@@ -420,7 +433,9 @@
   line-height: 1;
   padding: 0 2px;
   opacity: 0;
-  transition: opacity 120ms, color 120ms;
+  transition:
+    opacity 120ms,
+    color 120ms;
 }
 
 .pool__item:hover .pool__drop,
@@ -486,7 +501,11 @@
   background: var(--bg-raised);
   color: var(--ink-dim);
   padding: 9px 14px;
-  transition: background 140ms, color 140ms, border-color 140ms, transform 90ms;
+  transition:
+    background 140ms,
+    color 140ms,
+    border-color 140ms,
+    transform 90ms;
 }
 
 .btn:hover:not(:disabled) {
@@ -517,14 +536,18 @@
   color: var(--bg);
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 0 0 var(--accent-glow), 0 8px 30px -10px var(--accent-glow);
+  box-shadow:
+    0 0 0 0 var(--accent-glow),
+    0 8px 30px -10px var(--accent-glow);
 }
 
 .btn--primary:hover:not(:disabled) {
   background: #7df3e0;
   border-color: #7df3e0;
   color: var(--bg);
-  box-shadow: 0 0 0 6px var(--accent-glow), 0 8px 30px -8px var(--accent-glow);
+  box-shadow:
+    0 0 0 6px var(--accent-glow),
+    0 8px 30px -8px var(--accent-glow);
 }
 
 .btn--primary:disabled {

@@ -10,9 +10,7 @@
 .stage {
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(120% 90% at 50% 45%, #0d1017 0%, var(--bg) 62%),
-    var(--bg);
+  background: radial-gradient(120% 90% at 50% 45%, #0d1017 0%, var(--bg) 62%), var(--bg);
 }
 
 .stage__canvas {
@@ -40,6 +38,23 @@
   z-index: 3;
 }
 
+/* The pool readout lives in the corner rather than under the chamber: the
+   particle field is centred and would swallow small type anywhere near it. */
+.stage__status {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  z-index: 3;
+  margin: 0;
+  max-width: 60%;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-shadow: 0 0 12px var(--bg);
+}
+
 /* The verdict is DOM text, not canvas text: selectable, zoomable, readable by
    screen readers. The canvas handles the particles behind it. */
 .verdict {
@@ -63,6 +78,10 @@
   display: block;
   color: var(--ink);
   overflow-wrap: anywhere;
+  /* Guarantees the name reads over whatever the chamber is doing behind it. */
+  text-shadow:
+    0 0 22px rgba(8, 9, 12, 0.95),
+    0 0 60px rgba(8, 9, 12, 0.85);
 }
 
 .verdict__item + .verdict__item {
@@ -83,15 +102,6 @@
   letter-spacing: 0.06em;
   color: var(--ink-faint);
   vertical-align: middle;
-}
-
-.verdict__idle {
-  font-family: var(--font-mono);
-  font-size: 0.16em;
-  font-weight: 400;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
 }
 
 /* ---------- Verify disclosure ---------- */
