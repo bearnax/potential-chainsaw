@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Entropy Chamber - a weighted randomizer that makes probability visible. Paste a list, watch the odds, draw a winner."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Entropy Chamber</title>
+  </head>
+  <body>
+    <div class="app" id="app-root">
+      <aside class="panel" id="panel">
+        <header class="panel__head">
+          <h1 class="wordmark">
+            <span class="wordmark__main">Entropy Chamber</span>
+            <span class="wordmark__sub">weighted randomizer</span>
+          </h1>
+        </header>
+
+        <div class="panel__scroll">
+          <section class="block" aria-labelledby="source-h">
+            <div class="block__head">
+              <h2 class="block__title" id="source-h">Source</h2>
+              <div class="seg" role="tablist" aria-label="Input method">
+                <button
+                  class="seg__btn is-active"
+                  role="tab"
+                  id="tab-paste"
+                  aria-selected="true"
+                  aria-controls="pane-paste"
+                  data-tab="paste"
+                >
+                  Paste
+                </button>
+                <button
+                  class="seg__btn"
+                  role="tab"
+                  id="tab-file"
+                  aria-selected="false"
+                  aria-controls="pane-file"
+                  data-tab="file"
+                >
+                  CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="pane" id="pane-paste" role="tabpanel" aria-labelledby="tab-paste">
+              <label class="sr-only" for="paste">Entries, one per line</label>
+              <textarea
+                id="paste"
+                class="paste"
+                spellcheck="false"
+                autocomplete="off"
+                rows="9"
+                placeholder="One entry per line&#10;&#10;Ada Lovelace&#10;Grace Hopper, 3&#10;Katherine Johnson, 2"
+              ></textarea>
+              <p class="hint">
+                Add a weight with a trailing comma:
+                <code>Name, 3</code> is three times as likely as <code>Name</code>.
+              </p>
+            </div>
+
+            <div
+              class="pane is-hidden"
+              id="pane-file"
+              role="tabpanel"
+              aria-labelledby="tab-file"
+              hidden
+            >
+              <div class="drop" id="drop">
+                <input
+                  class="sr-only"
+                  type="file"
+                  id="file"
+                  accept=".csv,.tsv,.txt,text/csv,text/plain"
+                />
+                <label class="drop__label" for="file">
+                  <span class="drop__icon" aria-hidden="true">&#8681;</span>
+                  <span class="drop__main">Drop a CSV or TSV</span>
+                  <span class="drop__sub">or click to choose &middot; max 2&nbsp;MB</span>
+                </label>
+              </div>
+              <div class="cols is-hidden" id="cols" hidden>
+                <div class="field">
+                  <label class="field__label" for="col-name">Name column</label>
+                  <select class="select" id="col-name"></select>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="col-weight">Weight column</label>
+                  <select class="select" id="col-weight"></select>
+                </div>
+                <label class="check">
+                  <input type="checkbox" id="has-header" checked />
+                  <span>First row is a header</span>
+                </label>
+              </div>
+            </div>
+
+            <p class="readout" id="parse-readout" role="status" aria-live="polite">no entries</p>
+          </section>
+
+          <section class="block" aria-labelledby="draw-h">
+            <h2 class="block__title" id="draw-h">Draw</h2>
+
+            <div class="field field--row">
+              <label class="field__label" for="count">Winners</label>
+              <div class="stepper">
+                <button
+                  class="stepper__btn"
+                  id="count-down"
+                  type="button"
+                  aria-label="One fewer winner"
+                >
+                  &minus;
+                </button>
+                <input
+                  class="stepper__input"
+                  id="count"
+                  type="number"
+                  min="1"
+                  max="1"
+                  value="1"
+                  inputmode="numeric"
+                />
+                <button
+                  class="stepper__btn"
+                  id="count-up"
+                  type="button"
+                  aria-label="One more winner"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <label class="check">
+              <input type="checkbox" id="use-weights" checked />
+              <span>Use weights<em class="check__note">off treats every entry as equal</em></span>
+            </label>
+
+            <label class="check">
+              <input type="checkbox" id="eliminate" />
+              <span>Elimination mode<em class="check__note">winners leave the chamber</em></span>
+            </label>
+
+            <label class="check">
+              <input type="checkbox" id="sound" />
+              <span>Sound</span>
+            </label>
+          </section>
+
+          <section class="block" aria-labelledby="pool-h">
+            <div class="block__head">
+              <h2 class="block__title" id="pool-h">Pool</h2>
+              <button class="link" id="restore" type="button" hidden>Restore all</button>
+            </div>
+            <ol class="pool" id="pool"></ol>
+          </section>
+
+          <section class="block" aria-labelledby="history-h">
+            <div class="block__head">
+              <h2 class="block__title" id="history-h">History</h2>
+              <button class="link" id="undo" type="button" hidden>Undo</button>
+            </div>
+            <ol class="history" id="history">
+              <li class="history__empty">No draws yet.</li>
+            </ol>
+          </section>
+
+          <section class="block">
+            <div class="row">
+              <button class="btn btn--ghost" id="share" type="button">Copy share link</button>
+              <button class="btn btn--ghost" id="clear" type="button">Clear</button>
+            </div>
+            <p class="readout" id="share-readout" role="status" aria-live="polite"></p>
+          </section>
+        </div>
+      </aside>
+
+      <main class="stage">
+        <canvas
+          id="chamber"
+          class="stage__canvas"
+          role="img"
+          aria-label="Particle chamber"
+        ></canvas>
+
+        <div class="stage__overlay">
+          <div class="verdict" id="verdict" aria-hidden="true"></div>
+        </div>
+
+        <p class="stage__status" id="stage-status">add entries to begin</p>
+
+        <div class="stage__controls">
+          <button class="btn btn--primary" id="draw" type="button" disabled>
+            <span class="btn__label">Draw</span>
+            <span class="btn__key" aria-hidden="true">space</span>
+          </button>
+        </div>
+
+        <details class="verify" id="verify">
+          <summary class="verify__summary">
+            Verify
+            <span class="verify__hash" id="verify-hash"></span>
+          </summary>
+          <div class="verify__body" id="verify-body">
+            <p class="verify__note">
+              The winner is chosen with <code>crypto.getRandomValues</code> before the animation
+              starts, and its SHA-256 commitment is shown above while the chamber spins. The
+              animation cannot change the outcome.
+            </p>
+            <div class="verify__odds" id="verify-odds"></div>
+          </div>
+        </details>
+
+        <p class="sr-only" id="announce" role="status" aria-live="polite"></p>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
