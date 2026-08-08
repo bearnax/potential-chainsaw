@@ -15,14 +15,26 @@ export function mountResults() {
   const verifyHash = must('verify-hash');
   const verifyOdds = must('verify-odds');
 
-  function showIdle(entryCount: number): void {
+  /**
+   * The corner readout. An exhausted pool and an empty one look identical from
+   * an entry count alone, and telling someone who just drew their whole list to
+   * "add entries" would be nonsense — so they get different copy.
+   */
+  function setStatus(total: number, active: number): void {
+    if (total === 0) {
+      status.textContent = 'add entries to begin';
+    } else if (active === 0) {
+      status.textContent = 'every entry drawn — undo or restore';
+    } else {
+      status.textContent = `${active} ${active === 1 ? 'entry' : 'entries'} in the chamber`;
+    }
+  }
+
+  /** Clear the winner and go back to waiting. */
+  function showIdle(): void {
     verdict.classList.remove('is-live', 'verdict--multi');
     verdict.setAttribute('aria-hidden', 'true');
     verdict.replaceChildren();
-    status.textContent =
-      entryCount === 0
-        ? 'add entries to begin'
-        : `${entryCount} ${entryCount === 1 ? 'entry' : 'entries'} in the chamber`;
   }
 
   function showWinners(winners: readonly Entry[], indexOf: (entry: Entry) => number): void {
@@ -103,5 +115,5 @@ export function mountResults() {
     verifyOdds.replaceChildren(...rows);
   }
 
-  return { showIdle, showWinners, hideVerdict, showCommitment, showOdds };
+  return { setStatus, showIdle, showWinners, hideVerdict, showCommitment, showOdds };
 }

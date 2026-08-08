@@ -71,28 +71,27 @@ function syncChamber(): void {
   results.showOdds(state.entries, fullOdds(state), lastCommitment);
 }
 
-function syncControls(): void {
+function syncControls(options: { clearVerdict?: boolean } = {}): void {
   const state = store.get();
-  const count = activeEntries(state).length;
-  drawBtn.disabled = drawing || count === 0;
+  const active = activeEntries(state).length;
+  drawBtn.disabled = drawing || active === 0;
   sound.enabled = state.settings.sound;
-  if (!drawing) results.showIdle(count);
+  results.setStatus(state.entries.length, active);
+  if (options.clearVerdict && !drawing) results.showIdle();
 }
 
 const panel = mountPanel(store, {
+  // Editing the list invalidates whatever winner is on screen.
   onEntriesChanged: () => {
     syncChamber();
-    syncControls();
+    syncControls({ clearVerdict: true });
   },
 });
 
 store.subscribe((state) => {
   saveLocal(state);
   syncChamber();
-  if (!drawing) {
-    drawBtn.disabled = activeEntries(state).length === 0;
-    sound.enabled = state.settings.sound;
-  }
+  if (!drawing) syncControls();
 });
 
 /* ------------------------------------------------------------------ */
@@ -163,7 +162,7 @@ async function runDraw(): Promise<void> {
 
   drawing = false;
   app.classList.remove('is-drawing');
-  drawBtn.disabled = activeEntries(after).length === 0;
+  syncControls();
 
   // The collapse consumed every particle. Refill the chamber behind the
   // winner's name so it is visibly ready for another draw. In elimination mode
@@ -215,7 +214,7 @@ async function boot(): Promise<void> {
 
   panel.adopt(store.get());
   syncChamber();
-  syncControls();
+  syncControls({ clearVerdict: true });
 }
 
 void boot();

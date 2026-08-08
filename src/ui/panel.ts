@@ -78,11 +78,19 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
   /* ---------------- paste ---------------- */
 
   function applyResult(result: ParseResult, source: string): void {
-    store.setEntries(dedupe(result.entries));
-    const parts = [`${result.entries.length} ${result.entries.length === 1 ? 'entry' : 'entries'}`];
+    // Repeated labels are folded together with their weights added, which keeps
+    // the entry's overall odds identical while removing the confusing duplicate
+    // row. The readout has to count what actually went into the pool, not what
+    // was typed, or the numbers on screen won't add up.
+    const entries = dedupe(result.entries);
+    store.setEntries(entries);
 
-    const weighted = result.entries.filter((e) => e.weight !== 1).length;
+    const parts = [`${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`];
+    const merged = result.entries.length - entries.length;
+
+    const weighted = entries.filter((e) => e.weight !== 1).length;
     if (weighted) parts.push(`${weighted} weighted`);
+    if (merged) parts.push(`${merged} duplicate${merged === 1 ? '' : 's'} merged`);
     if (source === 'file' && result.skipped) parts.push(`${result.skipped} skipped`);
     parts.push(...result.warnings);
 
