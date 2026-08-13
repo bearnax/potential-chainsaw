@@ -20,13 +20,13 @@ export function mountResults() {
    * an entry count alone, and telling someone who just drew their whole list to
    * "add entries" would be nonsense — so they get different copy.
    */
-  function setStatus(total: number, active: number): void {
+  function setStatus(total: number, active: number, where: string): void {
     if (total === 0) {
       status.textContent = 'add entries to begin';
     } else if (active === 0) {
       status.textContent = 'every entry drawn — undo or restore';
     } else {
-      status.textContent = `${active} ${active === 1 ? 'entry' : 'entries'} in the chamber`;
+      status.textContent = `${active} ${active === 1 ? 'entry' : 'entries'} ${where}`;
     }
   }
 

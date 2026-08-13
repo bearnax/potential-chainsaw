@@ -6,7 +6,7 @@
  * before a user gesture, and pressing Draw is that gesture.
  */
 
-import type { Phase } from './chamber.ts';
+import type { Phase } from './visualizer.ts';
 
 export class Sound {
   private ctx: AudioContext | null = null;

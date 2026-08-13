@@ -8,6 +8,7 @@ import type { AppState, DrawRecord, Entry, Settings } from '../types.ts';
 type Listener = (state: AppState) => void;
 
 export const defaultSettings = (): Settings => ({
+  scene: 'column',
   count: 1,
   useWeights: true,
   eliminate: false,

@@ -1,0 +1,283 @@
+/* The Column: the list, drawn to scale, with a dart thrown at it. */
+
+.column {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+  overflow: hidden;
+  contain: paint;
+}
+
+.strip {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Height is the entry's share of the total weight — the whole idea, in one
+   declaration. A sliver is floored so it stays visible and hittable, which is
+   the only place the picture departs from the arithmetic. */
+.band {
+  position: relative;
+  flex: var(--share) 1 0;
+  min-height: 2px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 5px 14px 0 18px;
+  overflow: hidden;
+  color: var(--ink-dim);
+  background: color-mix(in srgb, var(--hue) 9%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--hue) 22%, transparent);
+  transition:
+    flex-grow 320ms var(--ease-out),
+    min-height 320ms var(--ease-out),
+    opacity 260ms var(--ease-out),
+    background 260ms var(--ease-out);
+}
+
+.band:first-child {
+  border-top: none;
+}
+
+.band__rule {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--hue);
+}
+
+.band__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  transition:
+    font-size 260ms var(--ease-out),
+    color 260ms var(--ease-out);
+}
+
+.band__pct {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+  flex: none;
+}
+
+.band__drop {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  flex: none;
+  opacity: 0;
+  transition:
+    opacity 120ms,
+    color 120ms;
+}
+
+.band:hover .band__drop,
+.band__drop:focus-visible {
+  opacity: 1;
+}
+
+.band__drop:hover {
+  color: var(--danger);
+}
+
+/* Too short to hold type without clipping it. In a long list that is most of
+   them, and a hairline between every pair turns the strip into a barcode — so
+   tight bands drop their border and lean on a stronger tint instead, which
+   reads as one continuous ramp of colour rather than a stack of rules. */
+.band.is-tight {
+  border-top-color: transparent;
+  background: color-mix(in srgb, var(--hue) 20%, transparent);
+}
+
+.band.is-tight .band__name,
+.band.is-tight .band__pct,
+.band.is-tight .band__drop {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Drawn this round. A sliver in a long list grows just enough to be read,
+   which costs the other bands a pixel or two of accuracy and buys the one
+   band anyone is looking at its name. */
+.band.is-won {
+  background: color-mix(in srgb, var(--hue) 26%, transparent);
+  color: var(--ink);
+  min-height: 26px;
+}
+
+.band.is-won.is-tight .band__name,
+.band.is-won.is-tight .band__pct {
+  opacity: 1;
+}
+
+.band.is-won .band__name {
+  color: var(--hue);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Everything the dart missed recedes rather than disappearing. */
+.band.is-dimmed {
+  opacity: 0.4;
+}
+
+/* Out of the pool: its weight has left the total, so its height leaves too. */
+.band.is-spent {
+  flex-grow: 0.0001;
+  min-height: 0;
+  opacity: 0;
+  border-top-color: transparent;
+}
+
+/* ---------- The dart ---------- */
+
+.marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-top: 2px solid var(--ink);
+  box-shadow:
+    0 0 12px 1px rgba(232, 236, 244, 0.55),
+    0 0 34px 6px rgba(232, 236, 244, 0.18);
+  transition: opacity 200ms var(--ease-out);
+  will-change: transform;
+}
+
+.marker.is-live {
+  opacity: 1;
+}
+
+/* Landed. Dimmer than in flight, but still visible as the thing that chose. */
+.marker.is-stuck {
+  border-top-color: var(--accent);
+  box-shadow:
+    0 0 10px 1px var(--accent-glow),
+    0 0 28px 6px rgba(94, 234, 212, 0.12);
+}
+
+.marker.is-stuck::before {
+  border-left-color: var(--accent);
+}
+
+.marker.is-stuck::after {
+  border-right-color: var(--accent);
+}
+
+/* A nib at each end, so the line reads as a pointer rather than a divider. */
+.marker::before,
+.marker::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  border-block: 4px solid transparent;
+}
+
+.marker::before {
+  left: 0;
+  border-left: 7px solid var(--ink);
+}
+
+.marker::after {
+  right: 0;
+  border-right: 7px solid var(--ink);
+}
+
+/* ---------- Column layout for the stage ---------- */
+
+.stage.scene-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px 26px calc(clamp(28px, 6vh, 56px) + 74px);
+  align-items: stretch;
+}
+
+.stage.scene-column > .stage__overlay,
+.stage.scene-column > .column {
+  width: min(640px, 100%);
+  margin-inline: auto;
+}
+
+.stage.scene-column .stage__canvas {
+  display: none;
+}
+
+/* The winner is a line of type above the strip, not a full-screen event. */
+.stage.scene-column .stage__overlay {
+  position: static;
+  display: block;
+  padding: 0;
+  min-height: 2.6em;
+}
+
+.stage.scene-column .verdict {
+  max-width: none;
+  text-align: left;
+  font-size: clamp(1.4rem, 3vw, 2.3rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.stage.scene-column .verdict__item {
+  text-shadow: none;
+}
+
+.stage.scene-column .verdict--multi .verdict__item {
+  font-size: 0.72em;
+}
+
+.stage.scene-column .verdict__rank {
+  font-size: 0.5em;
+}
+
+.stage.scene-column .column {
+  flex: 1;
+  min-height: 120px;
+}
+
+.stage.scene-column .stage__status {
+  position: static;
+  order: -1;
+  width: min(640px, 100%);
+  margin-inline: auto;
+}
+
+/* The chamber keeps the old full-bleed arrangement. */
+.stage.scene-chamber > .column {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .stage.scene-column {
+    padding: 18px 16px calc(clamp(28px, 6vh, 56px) + 68px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .band,
+  .band__name,
+  .marker {
+    transition-duration: 0.01ms !important;
+  }
+}

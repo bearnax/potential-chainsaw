@@ -55,6 +55,11 @@
   border-bottom: none;
 }
 
+/* display:grid above would otherwise win against the [hidden] attribute. */
+.block[hidden] {
+  display: none;
+}
+
 .block__head {
   display: flex;
   align-items: center;

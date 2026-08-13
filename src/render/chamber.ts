@@ -16,25 +16,18 @@
  * a whole entry's worth of particles without touching canvas state again.
  */
 
+import type { WeightedPick } from '../draw/rng.ts';
 import { chooseGhosts, drawGhosts, ghostSize, type Ghost } from './collapse.ts';
 import { hueFor, type Hue } from './palette.ts';
+import {
+  allocate,
+  STEP,
+  type Phase,
+  type PoolItem,
+  type Visualizer,
+  type VisualizerEvents,
+} from './visualizer.ts';
 
-export interface PoolItem {
-  readonly id: string;
-  readonly label: string;
-  /** Position in the full list, so a hue survives elimination and reordering. */
-  readonly hueIndex: number;
-}
-
-export type Phase = 'idle' | 'charge' | 'collapse' | 'bloom' | 'reveal';
-
-export interface ChamberEvents {
-  onPhase?: (phase: Phase) => void;
-  /** Fires once per draw, at the moment the winner should be shown. */
-  onReveal?: () => void;
-}
-
-const STEP = 1 / 60;
 const BG = [8, 9, 12] as const;
 
 const CHARGE_MS = 1150;
@@ -61,42 +54,10 @@ function budgetFor(width: number, height: number): number {
   return cores <= 4 ? Math.min(capped, 4200) : capped;
 }
 
-/**
- * Largest-remainder apportionment, with a floor of one particle per entry.
- *
- * Plain rounding would erase every long shot in a big list — an entry with
- * 0.4% of the weight would round to zero particles and disappear from a
- * picture that is supposed to show it can still win.
- */
-export function allocate(weights: readonly number[], budget: number): number[] {
-  const n = weights.length;
-  if (n === 0) return [];
-  if (budget <= n) return new Array<number>(n).fill(1);
-
-  const spare = budget - n;
-  const total = weights.reduce((sum, w) => sum + w, 0) || n;
-  const exact = weights.map((w) => (w / total) * spare);
-  const counts = exact.map(Math.floor);
-
-  let assigned = counts.reduce((sum, c) => sum + c, 0);
-  const byRemainder = exact
-    .map((value, i) => ({ i, rem: value - Math.floor(value) }))
-    .sort((a, b) => b.rem - a.rem);
-
-  let cursor = 0;
-  while (assigned < spare) {
-    counts[byRemainder[cursor % n]!.i]! += 1;
-    assigned += 1;
-    cursor += 1;
-  }
-
-  return counts.map((c) => c + 1);
-}
-
-export class Chamber {
+export class Chamber implements Visualizer {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly events: ChamberEvents;
+  private readonly events: VisualizerEvents;
 
   private width = 0;
   private height = 0;
@@ -117,6 +78,7 @@ export class Chamber {
   private offsets = new Int32Array(1);
 
   private items: PoolItem[] = [];
+  private weights: number[] = [];
   private hues: Hue[] = [];
   private odds: number[] = [];
   /** Weighted mean of the pool's hues — the chamber's ambient light. */
@@ -145,8 +107,10 @@ export class Chamber {
   private running = false;
   private staticMode = false;
   private resolveDraw: (() => void) | null = null;
+  private observer: ResizeObserver | undefined;
+  private readonly onVisibility: () => void;
 
-  constructor(canvas: HTMLCanvasElement, events: ChamberEvents = {}) {
+  constructor(canvas: HTMLCanvasElement, events: VisualizerEvents = {}) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('Canvas 2D is unavailable');
@@ -154,14 +118,21 @@ export class Chamber {
     this.events = events;
 
     this.resize();
-    const observer = new ResizeObserver(() => this.resize());
-    observer.observe(canvas);
+    this.observer = new ResizeObserver(() => this.resize());
+    this.observer.observe(canvas);
 
-    document.addEventListener('visibilitychange', () => {
+    this.onVisibility = () => {
       // No point simulating a chamber nobody is looking at.
       if (document.hidden) this.stop();
       else if (!this.staticMode) this.start();
-    });
+    };
+    document.addEventListener('visibilitychange', this.onVisibility);
+  }
+
+  destroy(): void {
+    this.stop();
+    this.observer?.disconnect();
+    document.removeEventListener('visibilitychange', this.onVisibility);
   }
 
   /** Freeze the animation and render a still composition instead. */
@@ -218,6 +189,7 @@ export class Chamber {
     const previous = this.snapshotByEntry();
 
     this.items = [...items];
+    this.weights = [...weights];
     this.hues = items.map((item) => hueFor(item.label, item.hueIndex));
 
     const total = weights.reduce((sum, w) => sum + w, 0);
@@ -347,7 +319,8 @@ export class Chamber {
    * Run the full sequence for an already-decided result.
    * Resolves once the animation has finished and the chamber is settled.
    */
-  run(winnerIndices: readonly number[]): Promise<void> {
+  run(picks: readonly WeightedPick[]): Promise<void> {
+    const winnerIndices = picks.map((pick) => pick.index);
     this.winnerHues = winnerIndices.map((i) => this.hues[i]).filter((h): h is Hue => !!h);
     this.ghosts = chooseGhosts(
       this.items.map((item, i) => ({
@@ -391,14 +364,18 @@ export class Chamber {
   }
 
   /**
-   * Return to the resting field, ready for the next draw. The winner's sparks
-   * are left in place — they linger behind the name until the next draw
-   * clears them.
+   * Return to the resting field, ready for the next draw.
+   *
+   * The collapse consumed every particle, so resting means repopulating —
+   * the field refills behind the winner's name and is visibly ready to go
+   * again. The winner's sparks are left in place; they linger until the next
+   * draw clears them.
    */
   reset(): void {
     this.setPhase('idle');
     this.shock = -1;
     this.ghosts = [];
+    if (this.items.length > 0) this.setPool(this.items, this.weights);
   }
 
   private setPhase(phase: Phase): void {
