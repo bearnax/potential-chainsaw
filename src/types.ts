@@ -7,7 +7,10 @@ export interface Entry {
   readonly eliminated: boolean;
 }
 
+export type Scene = 'column' | 'chamber';
+
 export interface Settings {
+  scene: Scene;
   count: number;
   useWeights: boolean;
   eliminate: boolean;

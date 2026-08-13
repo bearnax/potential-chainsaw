@@ -78,6 +78,22 @@ export interface Weighted {
 }
 
 /**
+ * One round of a weighted draw, with the arithmetic left visible.
+ *
+ * `point` is where the dart landed in the round's total weight, and `index` is
+ * simply which item's interval contains it. Keeping the point rather than
+ * discarding it lets a visualisation show the actual mechanism — lay every
+ * entry's weight end to end, throw one dart — instead of miming it.
+ */
+export interface WeightedPick {
+  readonly index: number;
+  /** The dart, in [0, total). */
+  readonly point: number;
+  /** Total weight still in play for this round; shrinks as items are drawn. */
+  readonly total: number;
+}
+
+/**
  * Pick `count` distinct items, respecting weights, without replacement.
  *
  * Each round sums the weights still in play, draws a uniform point in that
@@ -85,15 +101,18 @@ export interface Weighted {
  * is nothing at our 5,000-entry ceiling and keeps the logic obvious enough to
  * audit by eye — worth more here than an alias-table's O(1).
  *
- * Returns indices into the original array, in the order they were drawn.
+ * Returns picks in the order they were drawn, indexed into the original array.
  */
-export function pickWeighted<T extends Weighted>(items: readonly T[], count: number): number[] {
+export function pickWeightedPoints<T extends Weighted>(
+  items: readonly T[],
+  count: number,
+): WeightedPick[] {
   if (count <= 0 || items.length === 0) return [];
 
   const wanted = Math.min(Math.floor(count), items.length);
   const remaining = items.map((_, i) => i);
   const weights = items.map((item) => normalizeWeight(item.weight));
-  const winners: number[] = [];
+  const picks: WeightedPick[] = [];
 
   for (let round = 0; round < wanted; round++) {
     let total = 0;
@@ -103,28 +122,33 @@ export function pickWeighted<T extends Weighted>(items: readonly T[], count: num
     // always return the requested number of winners.
     if (!(total > 0)) {
       const at = randomBelow(remaining.length);
-      winners.push(remaining[at]!);
+      picks.push({ index: remaining[at]!, point: 0, total: 0 });
       remaining.splice(at, 1);
       continue;
     }
 
-    const target = randomFloat() * total;
+    const point = randomFloat() * total;
     let cursor = 0;
     let chosen = remaining.length - 1; // guards against the sum overshooting
 
     for (let i = 0; i < remaining.length; i++) {
       cursor += weights[remaining[i]!]!;
-      if (target < cursor) {
+      if (point < cursor) {
         chosen = i;
         break;
       }
     }
 
-    winners.push(remaining[chosen]!);
+    picks.push({ index: remaining[chosen]!, point, total });
     remaining.splice(chosen, 1);
   }
 
-  return winners;
+  return picks;
+}
+
+/** Just the winning indices, for callers that don't care where the dart fell. */
+export function pickWeighted<T extends Weighted>(items: readonly T[], count: number): number[] {
+  return pickWeightedPoints(items, count).map((pick) => pick.index);
 }
 
 /** Each item's share of the total weight, as a fraction in [0, 1]. */

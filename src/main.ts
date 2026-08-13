@@ -1,32 +1,59 @@
 import './styles/tokens.css';
 import './styles/layout.css';
 import './styles/panel.css';
+import './styles/column.css';
 
 import { commitTo, type Commitment } from './draw/commit.ts';
-import { normalizeWeight, oddsOf, pickWeighted, randomNonce } from './draw/rng.ts';
-import { Chamber, type PoolItem } from './render/chamber.ts';
+import { normalizeWeight, oddsOf, pickWeightedPoints, randomNonce } from './draw/rng.ts';
+import { Chamber } from './render/chamber.ts';
+import { Column } from './render/column.ts';
 import { Sound } from './render/audio.ts';
+import type { PoolItem, Visualizer } from './render/visualizer.ts';
 import { loadLocal, readShareUrl, saveLocal } from './state/persist.ts';
 import { activeEntries, effectiveWeights, Store } from './state/store.ts';
 import { must, prefersReducedMotion } from './ui/dom.ts';
 import { mountPanel } from './ui/panel.ts';
 import { mountResults } from './ui/results.ts';
-import type { AppState, Entry } from './types.ts';
+import type { AppState, Entry, Scene } from './types.ts';
 
 const app = must('app-root');
-const canvas = must<HTMLCanvasElement>('chamber');
+const stageEl = must('stage');
+const canvas = must<HTMLCanvasElement>('stage-canvas');
+const columnHost = must('column');
 const drawBtn = must<HTMLButtonElement>('draw');
+const poolBlock = must('pool-block');
 
 const store = new Store();
 const sound = new Sound();
 const results = mountResults();
 
-const chamber = new Chamber(canvas, {
-  onPhase: (phase) => sound.onPhase(phase),
-});
+/**
+ * The two scenes disagree about how much attention a draw deserves, so the app
+ * holds one behind the Visualizer interface and never asks which it is.
+ */
+function makeScene(scene: Scene): Visualizer {
+  const events = { onPhase: (phase: Parameters<Sound['onPhase']>[0]) => sound.onPhase(phase) };
+
+  stageEl.classList.toggle('scene-column', scene === 'column');
+  stageEl.classList.toggle('scene-chamber', scene === 'chamber');
+  // In Column mode the strip *is* the pool list, so the panel's copy of it
+  // would be the same information twice.
+  poolBlock.hidden = scene === 'column';
+
+  if (scene === 'chamber') return new Chamber(canvas, events);
+  return new Column(columnHost, events, {
+    onRemove: (id) => {
+      store.removeEntry(id);
+      panel.syncFromStore();
+    },
+  });
+}
+
+let currentScene: Scene = store.get().settings.scene;
+let stage: Visualizer = makeScene(currentScene);
 
 let drawing = false;
-/** Signature of the last pool handed to the chamber, to avoid rebuilds. */
+/** Signature of the last pool handed to the scene, to avoid rebuilds. */
 let poolSignature = '';
 /** Rebuilding mid-vent would cut the drain animation short. */
 let ventTimer: number | undefined;
@@ -46,7 +73,7 @@ function fullOdds(state: AppState): number[] {
   return state.entries.map((entry) => byId.get(entry.id) ?? 0);
 }
 
-function syncChamber(): void {
+function syncScene(): void {
   if (ventTimer !== undefined) return;
 
   const state = store.get();
@@ -67,7 +94,7 @@ function syncChamber(): void {
     hueIndex: paletteIndex(state, entry),
   }));
 
-  chamber.setPool(items, weights);
+  stage.setPool(items, weights);
   results.showOdds(state.entries, fullOdds(state), lastCommitment);
 }
 
@@ -76,21 +103,43 @@ function syncControls(options: { clearVerdict?: boolean } = {}): void {
   const active = activeEntries(state).length;
   drawBtn.disabled = drawing || active === 0;
   sound.enabled = state.settings.sound;
-  results.setStatus(state.entries.length, active);
+  results.setStatus(
+    state.entries.length,
+    active,
+    state.settings.scene === 'column' ? 'on the strip' : 'in the chamber',
+  );
   if (options.clearVerdict && !drawing) results.showIdle();
+}
+
+/** Tear the old scene down and hand the new one the same pool. */
+function swapScene(): void {
+  const scene = store.get().settings.scene;
+  if (scene === currentScene) return;
+
+  stage.destroy();
+  currentScene = scene;
+  stage = makeScene(scene);
+
+  if (prefersReducedMotion()) stage.setStaticMode(true);
+  else stage.start();
+
+  poolSignature = '';
+  syncScene();
+  syncControls({ clearVerdict: true });
 }
 
 const panel = mountPanel(store, {
   // Editing the list invalidates whatever winner is on screen.
   onEntriesChanged: () => {
-    syncChamber();
+    syncScene();
     syncControls({ clearVerdict: true });
   },
+  onSceneChanged: swapScene,
 });
 
 store.subscribe((state) => {
   saveLocal(state);
-  syncChamber();
+  syncScene();
   if (!drawing) syncControls();
 });
 
@@ -106,8 +155,9 @@ async function runDraw(): Promise<void> {
   if (active.length === 0) return;
 
   const count = Math.min(Math.max(1, state.settings.count), active.length);
-  const picks = pickWeighted(effectiveWeights(state, active), count);
-  const winners = picks.map((i) => active[i]!).filter(Boolean);
+  const picks = pickWeightedPoints(effectiveWeights(state, active), count);
+  const winnerIndices = picks.map((pick) => pick.index);
+  const winners = winnerIndices.map((i) => active[i]!).filter(Boolean);
   if (winners.length === 0) return;
 
   drawing = true;
@@ -131,7 +181,7 @@ async function runDraw(): Promise<void> {
     results.showCommitment(null);
   }
 
-  await chamber.run(picks);
+  await stage.run(picks);
 
   const latest = store.get();
   results.showWinners(winners, (entry) => paletteIndex(latest, entry));
@@ -140,11 +190,11 @@ async function runDraw(): Promise<void> {
   if (eliminatedIds.length > 0) {
     // Drain the winners out of the chamber first, then rebuild the field so the
     // remaining odds visibly redistribute rather than snapping.
-    chamber.vent(picks);
+    stage.vent(winnerIndices);
     ventTimer = setTimeout(() => {
       ventTimer = undefined;
-      chamber.reset();
-      syncChamber();
+      stage.reset();
+      syncScene();
     }, 900) as unknown as number;
   }
 
@@ -164,14 +214,10 @@ async function runDraw(): Promise<void> {
   app.classList.remove('is-drawing');
   syncControls();
 
-  // The collapse consumed every particle. Refill the chamber behind the
-  // winner's name so it is visibly ready for another draw. In elimination mode
-  // the vent timer owns the rebuild, since the odds change too.
-  if (ventTimer === undefined) {
-    chamber.reset();
-    poolSignature = '';
-    syncChamber();
-  }
+  // Let the scene settle in whatever way it means by that: the chamber refills
+  // its field, the column simply puts the dart away and keeps the result on
+  // screen. In elimination mode the vent timer owns this, since the odds change.
+  if (ventTimer === undefined) stage.reset();
 }
 
 drawBtn.addEventListener('click', () => void runDraw());
@@ -194,8 +240,8 @@ document.addEventListener('keydown', (event) => {
 /* ------------------------------------------------------------------ */
 
 async function boot(): Promise<void> {
-  if (prefersReducedMotion()) chamber.setStaticMode(true);
-  else chamber.start();
+  if (prefersReducedMotion()) stage.setStaticMode(true);
+  else stage.start();
 
   // A shared link wins over whatever was left in this browser's autosave.
   const shared = await readShareUrl();
@@ -212,8 +258,12 @@ async function boot(): Promise<void> {
     }
   }
 
+  // A restored or shared setting may name the other scene than the one built
+  // at start-up.
+  swapScene();
+
   panel.adopt(store.get());
-  syncChamber();
+  syncScene();
   syncControls({ clearVerdict: true });
 }
 

@@ -21,11 +21,12 @@ import { oddsOf } from '../draw/rng.ts';
 import { hueFor } from '../render/palette.ts';
 import { activeEntries, effectiveWeights, type Store } from '../state/store.ts';
 import { buildShareUrl } from '../state/persist.ts';
-import { LIMITS, type AppState } from '../types.ts';
+import { LIMITS, type AppState, type Scene } from '../types.ts';
 import { debounce, formatPercent, must, show } from './dom.ts';
 
 export interface PanelHandlers {
   onEntriesChanged: () => void;
+  onSceneChanged: () => void;
 }
 
 export function mountPanel(store: Store, handlers: PanelHandlers) {
@@ -52,7 +53,11 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
   const clearBtn = must<HTMLButtonElement>('clear');
   const panePaste = must('pane-paste');
   const paneFile = must('pane-file');
-  const tabs = [...document.querySelectorAll<HTMLButtonElement>('.seg__btn')];
+  const sceneHint = must('scene-hint');
+  const eliminateNote = must('eliminate-note');
+  const wordmark = must('wordmark-main');
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-tab]')];
+  const sceneButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-scene]')];
 
   /** Last parsed table, kept so the column pickers can re-derive entries. */
   let table: Table | null = null;
@@ -73,6 +78,30 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
 
   for (const tab of tabs) {
     tab.addEventListener('click', () => selectTab(tab.dataset['tab'] ?? 'paste'));
+  }
+
+  /* ---------------- scene ---------------- */
+
+  const SCENE_COPY: Record<Scene, { name: string; hint: string; eliminate: string }> = {
+    column: {
+      name: 'The Column',
+      hint: 'Every entry is a band as tall as its odds. Drawing throws one dart at the strip.',
+      eliminate: 'winners leave the strip',
+    },
+    chamber: {
+      name: 'Entropy Chamber',
+      hint: 'Particles in a containment field. Each entry owns a share of the light.',
+      eliminate: 'winners leave the chamber',
+    },
+  };
+
+  for (const button of sceneButtons) {
+    button.addEventListener('click', () => {
+      const scene = button.dataset['scene'] === 'chamber' ? 'chamber' : 'column';
+      if (store.get().settings.scene === scene) return;
+      store.patchSettings({ scene });
+      handlers.onSceneChanged();
+    });
   }
 
   /* ---------------- paste ---------------- */
@@ -354,6 +383,16 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
   function render(state: AppState): void {
     const active = activeEntries(state);
 
+    const copy = SCENE_COPY[state.settings.scene];
+    wordmark.textContent = copy.name;
+    sceneHint.textContent = copy.hint;
+    eliminateNote.textContent = copy.eliminate;
+    for (const button of sceneButtons) {
+      const on = button.dataset['scene'] === state.settings.scene;
+      button.classList.toggle('is-active', on);
+      button.setAttribute('aria-checked', String(on));
+    }
+
     countInput.max = String(Math.max(1, active.length));
     countInput.value = String(state.settings.count);
     countDown.disabled = state.settings.count <= 1;
@@ -368,6 +407,14 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
 
     renderPool(state);
     renderHistory(state);
+  }
+
+  /** Re-derive the textarea from the store, after an edit made elsewhere. */
+  function syncFromStore(): void {
+    syncing = true;
+    paste.value = formatList(store.get().entries);
+    syncing = false;
+    handlers.onEntriesChanged();
   }
 
   /** Load entries from outside the panel (autosave, share link) into the UI. */
@@ -387,5 +434,10 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
   store.subscribe(render);
   render(store.get());
 
-  return { render, adopt, notice: (text: string) => (shareReadout.textContent = text) };
+  return {
+    render,
+    adopt,
+    syncFromStore,
+    notice: (text: string) => (shareReadout.textContent = text),
+  };
 }

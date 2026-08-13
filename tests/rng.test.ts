@@ -4,6 +4,7 @@ import {
   normalizeWeight,
   oddsOf,
   pickWeighted,
+  pickWeightedPoints,
   randomBelow,
   randomFloat,
 } from '../src/draw/rng.ts';
@@ -149,6 +150,71 @@ describe('pickWeighted', () => {
       if (pickWeighted(pool, 3)[0] === 2) firstPlace += 1;
     }
     expect(firstPlace / draws).toBeGreaterThan(0.9);
+  });
+});
+
+describe('pickWeightedPoints', () => {
+  it('lands every dart inside the interval of the item it chose', () => {
+    // The whole contract the Column depends on: the point is not decoration,
+    // it is the reason that item won, so it must fall inside that item's
+    // stretch of the remaining weight.
+    const pool = [w(1), w(3), w(0.5), w(6), w(2)];
+
+    for (let trial = 0; trial < 2000; trial++) {
+      const picks = pickWeightedPoints(pool, 3);
+      const spent = new Set<number>();
+
+      for (const pick of picks) {
+        let before = 0;
+        for (let i = 0; i < pool.length; i++) {
+          if (i === pick.index) break;
+          if (spent.has(i)) continue;
+          before += pool[i]!.weight;
+        }
+        const after = before + pool[pick.index]!.weight;
+
+        expect(pick.point).toBeGreaterThanOrEqual(before);
+        expect(pick.point).toBeLessThan(after);
+        spent.add(pick.index);
+      }
+    }
+  });
+
+  it('shrinks the total as items are drawn', () => {
+    const pool = [w(1), w(2), w(3), w(4)];
+    const picks = pickWeightedPoints(pool, 4);
+    const totals = picks.map((p) => p.total);
+
+    expect(totals[0]).toBeCloseTo(10, 10);
+    for (let i = 1; i < totals.length; i++) {
+      expect(totals[i]!).toBeLessThan(totals[i - 1]!);
+    }
+    // The last round has one item left, so its total is that item's weight.
+    expect(totals[3]).toBeCloseTo(pool[picks[3]!.index]!.weight, 10);
+  });
+
+  it('keeps every point inside its round total', () => {
+    for (let trial = 0; trial < 500; trial++) {
+      for (const pick of pickWeightedPoints([w(1), w(9), w(0.2)], 3)) {
+        expect(pick.point).toBeGreaterThanOrEqual(0);
+        expect(pick.point).toBeLessThan(pick.total);
+      }
+    }
+  });
+
+  it('agrees with pickWeighted on the indices it returns', () => {
+    const pool = [w(2), w(5), w(1)];
+    for (let trial = 0; trial < 200; trial++) {
+      const picks = pickWeightedPoints(pool, 2);
+      expect(picks).toHaveLength(2);
+      expect(new Set(picks.map((p) => p.index)).size).toBe(2);
+    }
+    expect(pickWeighted(pool, 3)).toHaveLength(3);
+  });
+
+  it('returns nothing for an empty pool or non-positive count', () => {
+    expect(pickWeightedPoints([], 3)).toEqual([]);
+    expect(pickWeightedPoints([w(1)], 0)).toEqual([]);
   });
 });
 

@@ -6,17 +6,17 @@
     <meta name="color-scheme" content="dark" />
     <meta
       name="description"
-      content="Entropy Chamber - a weighted randomizer that makes probability visible. Paste a list, watch the odds, draw a winner."
+      content="A weighted randomizer that makes probability visible. Every entry is a band as tall as its odds; drawing throws one dart at the strip."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Entropy Chamber</title>
+    <title>Column &amp; Chamber</title>
   </head>
   <body>
     <div class="app" id="app-root">
       <aside class="panel" id="panel">
         <header class="panel__head">
           <h1 class="wordmark">
-            <span class="wordmark__main">Entropy Chamber</span>
+            <span class="wordmark__main" id="wordmark-main">The Column</span>
             <span class="wordmark__sub">weighted randomizer</span>
           </h1>
         </header>
@@ -104,6 +104,37 @@
             <p class="readout" id="parse-readout" role="status" aria-live="polite">no entries</p>
           </section>
 
+          <section class="block" aria-labelledby="scene-h">
+            <div class="block__head">
+              <h2 class="block__title" id="scene-h">Scene</h2>
+              <div class="seg" role="radiogroup" aria-labelledby="scene-h">
+                <button
+                  class="seg__btn is-active"
+                  role="radio"
+                  id="scene-column"
+                  aria-checked="true"
+                  data-scene="column"
+                  type="button"
+                >
+                  Column
+                </button>
+                <button
+                  class="seg__btn"
+                  role="radio"
+                  id="scene-chamber"
+                  aria-checked="false"
+                  data-scene="chamber"
+                  type="button"
+                >
+                  Chamber
+                </button>
+              </div>
+            </div>
+            <p class="hint" id="scene-hint">
+              Every entry is a band as tall as its odds. Drawing throws one dart at the strip.
+            </p>
+          </section>
+
           <section class="block" aria-labelledby="draw-h">
             <h2 class="block__title" id="draw-h">Draw</h2>
 
@@ -145,7 +176,11 @@
 
             <label class="check">
               <input type="checkbox" id="eliminate" />
-              <span>Elimination mode<em class="check__note">winners leave the chamber</em></span>
+              <span
+                >Elimination mode<em class="check__note" id="eliminate-note"
+                  >winners leave the strip</em
+                ></span
+              >
             </label>
 
             <label class="check">
@@ -154,7 +189,7 @@
             </label>
           </section>
 
-          <section class="block" aria-labelledby="pool-h">
+          <section class="block" aria-labelledby="pool-h" id="pool-block">
             <div class="block__head">
               <h2 class="block__title" id="pool-h">Pool</h2>
               <button class="link" id="restore" type="button" hidden>Restore all</button>
@@ -182,17 +217,19 @@
         </div>
       </aside>
 
-      <main class="stage">
+      <main class="stage scene-column" id="stage">
         <canvas
-          id="chamber"
+          id="stage-canvas"
           class="stage__canvas"
           role="img"
-          aria-label="Particle chamber"
+          aria-label="Draw visualisation"
         ></canvas>
 
         <div class="stage__overlay">
           <div class="verdict" id="verdict" aria-hidden="true"></div>
         </div>
+
+        <div class="column" id="column"></div>
 
         <p class="stage__status" id="stage-status">add entries to begin</p>
 
