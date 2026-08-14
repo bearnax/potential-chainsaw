@@ -101,7 +101,10 @@ function makeScene(scene: Scene): Visualizer {
         panel.syncFromStore();
       },
     },
-    { palette: mode === 'protocol' ? 'phosphor' : 'spectrum' },
+    {
+      palette: mode === 'protocol' ? 'phosphor' : 'spectrum',
+      revealStyle: mode === 'protocol' ? 'decay' : 'dart',
+    },
   );
 }
 
