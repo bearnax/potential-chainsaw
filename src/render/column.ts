@@ -17,16 +17,32 @@
  */
 
 import type { WeightedPick } from '../draw/rng.ts';
-import { hueFor, type Hue } from './palette.ts';
+import { hueFor, phosphorFor, type Hue } from './palette.ts';
 import type { Phase, PoolItem, Visualizer, VisualizerEvents } from './visualizer.ts';
 
 /** Under this many pixels a band cannot hold a legible label. */
 const LABEL_MIN_HEIGHT = 17;
-const FIRST_SWEEP_MS = 1500;
-const NEXT_SWEEP_MS = 620;
-const SETTLE_MS = 420;
+/** Under this, there is no room for the justification line either. */
+const DETAIL_MIN_HEIGHT = 34;
+
+/**
+ * Timings.
+ *
+ * These are slow on purpose. The draw is instant and always was — the whole
+ * point of the strip is that you can watch the machine work — and a readout
+ * that resolves before you have finished reading it is just a slot machine with
+ * better manners. Every number here is roughly three times what it started as.
+ */
+const SCAN_MS = 1400;
+const FIRST_SWEEP_MS = 4200;
+const NEXT_SWEEP_MS = 1800;
+const SETTLE_MS = 900;
+/** How long the winning band is left alone before the next round starts. */
+const HOLD_MS = 700;
 /** Whole passes down the strip before the dart lands. */
-const SWEEP_LOOPS = 3;
+const SWEEP_LOOPS = 4;
+
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const easeOutQuart = (t: number): number => 1 - Math.pow(1 - t, 4);
 
@@ -35,12 +51,22 @@ export interface ColumnHandlers {
   onRemove?: (id: string) => void;
 }
 
+export interface ColumnOptions {
+  /**
+   * `spectrum` fans the bands across the colour wheel, which is what a pasted
+   * list of names wants. `phosphor` keeps them inside one green, which is what
+   * the protocol's CRT dressing needs.
+   */
+  palette?: 'spectrum' | 'phosphor';
+}
+
 export class Column implements Visualizer {
   private readonly host: HTMLElement;
   private readonly strip: HTMLElement;
   private readonly marker: HTMLElement;
   private readonly events: VisualizerEvents;
   private readonly handlers: ColumnHandlers;
+  private readonly palette: NonNullable<ColumnOptions['palette']>;
 
   private items: PoolItem[] = [];
   private weights: number[] = [];
@@ -52,10 +78,16 @@ export class Column implements Visualizer {
   private drawing = false;
   private readonly observer: ResizeObserver;
 
-  constructor(host: HTMLElement, events: VisualizerEvents = {}, handlers: ColumnHandlers = {}) {
+  constructor(
+    host: HTMLElement,
+    events: VisualizerEvents = {},
+    handlers: ColumnHandlers = {},
+    options: ColumnOptions = {},
+  ) {
     this.host = host;
     this.events = events;
     this.handlers = handlers;
+    this.palette = options.palette ?? 'spectrum';
 
     this.strip = document.createElement('div');
     this.strip.className = 'strip';
@@ -97,7 +129,9 @@ export class Column implements Visualizer {
   setPool(items: readonly PoolItem[], weights: readonly number[]): void {
     this.items = [...items];
     this.weights = [...weights];
-    this.hues = items.map((item) => hueFor(item.label, item.hueIndex));
+    this.hues = items.map((item, i) =>
+      this.palette === 'phosphor' ? phosphorFor(i) : hueFor(item.label, item.hueIndex),
+    );
 
     const total = weights.reduce((sum, w) => sum + w, 0);
 
@@ -118,7 +152,17 @@ export class Column implements Visualizer {
       name.textContent = item.label;
       // In a long list most bands are too short for a label. The name is still
       // reachable by pointer, and a winning band grows enough to show its own.
-      band.title = `${item.label} — ${formatShare(share)}`;
+      band.title = item.detail
+        ? `${item.label} — ${formatShare(share)} · ${item.detail}`
+        : `${item.label} — ${formatShare(share)}`;
+
+      // Bands arrive in sequence rather than all at once, which is the only
+      // moment the strip announces its own size.
+      band.style.setProperty('--rank', String(i));
+
+      const detail = document.createElement('span');
+      detail.className = 'band__detail';
+      detail.textContent = item.detail ?? '';
 
       const pct = document.createElement('span');
       pct.className = 'band__pct';
@@ -134,7 +178,7 @@ export class Column implements Visualizer {
         this.handlers.onRemove?.(item.id);
       });
 
-      band.append(rule, name, pct, drop);
+      band.append(rule, name, detail, pct, drop);
       return band;
     });
 
@@ -150,8 +194,26 @@ export class Column implements Visualizer {
 
   private fitLabels(): void {
     for (const band of this.bands) {
-      band.classList.toggle('is-tight', band.offsetHeight < LABEL_MIN_HEIGHT);
+      const height = band.offsetHeight;
+      band.classList.toggle('is-tight', height < LABEL_MIN_HEIGHT);
+      band.classList.toggle('is-terse', height < DETAIL_MIN_HEIGHT);
     }
+  }
+
+  /**
+   * The pass before the dart: a light runs down the strip, band by band, and
+   * every band states its share as it is touched.
+   *
+   * It computes nothing — the answer was fixed before this method was called —
+   * but it is the only part of the run that shows you the whole field at a
+   * readable pace, which is what the strip is for.
+   */
+  async scan(): Promise<void> {
+    if (this.staticMode || this.bands.length === 0) return;
+
+    this.host.classList.add('is-scanning');
+    await wait(SCAN_MS);
+    this.host.classList.remove('is-scanning');
   }
 
   /* ---------------- the draw ---------------- */
@@ -183,9 +245,11 @@ export class Column implements Visualizer {
         band.classList.add('is-won');
         spent.add(pick.index);
         if (round < picks.length - 1) {
-          // Collapse it so the next dart is thrown at the remaining strip.
-          await this.settle(band);
+          // Let the result stand before the strip rearranges under it —
+          // collapsing instantly would hide what was just decided.
+          if (!this.staticMode) await wait(HOLD_MS);
           band.classList.add('is-spent');
+          await this.settle(band);
         }
       }
 

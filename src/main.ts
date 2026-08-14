@@ -2,17 +2,24 @@ import './styles/tokens.css';
 import './styles/layout.css';
 import './styles/panel.css';
 import './styles/column.css';
+import './styles/nostromo.css';
 
 import { commitTo, type Commitment } from './draw/commit.ts';
+import { defaultConfig, type ProtocolConfig } from './eldenring/loadout.ts';
+import { stagesFor, summarize, type Loadout } from './eldenring/protocol.ts';
+import { WEAPONS } from './eldenring/weapons.ts';
+import { runProtocol } from './eldenring/run.ts';
 import { normalizeWeight, oddsOf, pickWeightedPoints, randomNonce } from './draw/rng.ts';
 import { Chamber } from './render/chamber.ts';
 import { Column } from './render/column.ts';
 import { Sound } from './render/audio.ts';
 import type { PoolItem, Visualizer } from './render/visualizer.ts';
-import { loadLocal, readShareUrl, saveLocal } from './state/persist.ts';
+import { loadLocal, loadProtocol, readShareUrl, saveLocal, saveProtocol } from './state/persist.ts';
 import { activeEntries, effectiveWeights, Store } from './state/store.ts';
-import { must, prefersReducedMotion } from './ui/dom.ts';
+import { must, prefersReducedMotion, show } from './ui/dom.ts';
+import { mountDossier } from './ui/dossier.ts';
 import { mountPanel } from './ui/panel.ts';
+import { mountProtocolPanel } from './ui/protocol-panel.ts';
 import { mountResults } from './ui/results.ts';
 import type { AppState, Entry, Scene } from './types.ts';
 
@@ -21,11 +28,55 @@ const stageEl = must('stage');
 const canvas = must<HTMLCanvasElement>('stage-canvas');
 const columnHost = must('column');
 const drawBtn = must<HTMLButtonElement>('draw');
+const drawLabel = drawBtn.querySelector<HTMLElement>('.btn__label')!;
 const poolBlock = must('pool-block');
+const brief = must('brief');
+const briefStep = must('brief-step');
+const briefTitle = must('brief-title');
+const briefText = must('brief-text');
+const dossierHost = must('dossier');
+const modeHint = must('mode-hint');
+const wordmarkSub = must('wordmark-sub');
 
 const store = new Store();
 const sound = new Sound();
 const results = mountResults();
+const dossier = mountDossier(dossierHost);
+
+/* ------------------------------------------------------------------ */
+/* Mode                                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Two things live in this app now.
+ *
+ * `protocol` is the Elden Ring build sequencer — four staged draws down one
+ * strip, then a dossier. `list` is the original general randomizer, kept
+ * because the machinery underneath is the same and throwing it away would cost
+ * more than the tab it occupies.
+ */
+type Mode = 'protocol' | 'list';
+
+const saved = loadProtocol();
+let mode: Mode = saved?.mode ?? 'protocol';
+let protocolConfig: ProtocolConfig = saved?.config ?? defaultConfig();
+
+const MODE_HINTS: Record<Mode, string> = {
+  protocol:
+    'Four stages, one strip: weapon classes, a sidearm, a school of magic, a status effect — ' +
+    'then the lockouts for a fresh playthrough.',
+  list: 'Paste or drop a list. Every entry is a band as tall as its odds.',
+};
+
+mountProtocolPanel(must('protocol-config'), protocolConfig, {
+  onChange: (next) => {
+    protocolConfig = next;
+    saveProtocol({ mode, config: protocolConfig });
+    // Editing the protocol mid-run would leave a dossier describing a config
+    // that no longer exists, so the run is abandoned rather than patched.
+    if (mode === 'protocol') clearRun();
+  },
+});
 
 /**
  * The two scenes disagree about how much attention a draw deserves, so the app
@@ -41,12 +92,17 @@ function makeScene(scene: Scene): Visualizer {
   poolBlock.hidden = scene === 'column';
 
   if (scene === 'chamber') return new Chamber(canvas, events);
-  return new Column(columnHost, events, {
-    onRemove: (id) => {
-      store.removeEntry(id);
-      panel.syncFromStore();
+  return new Column(
+    columnHost,
+    events,
+    {
+      onRemove: (id) => {
+        store.removeEntry(id);
+        panel.syncFromStore();
+      },
     },
-  });
+    { palette: mode === 'protocol' ? 'phosphor' : 'spectrum' },
+  );
 }
 
 let currentScene: Scene = store.get().settings.scene;
@@ -75,6 +131,9 @@ function fullOdds(state: AppState): number[] {
 
 function syncScene(): void {
   if (ventTimer !== undefined) return;
+  // In protocol mode the strip belongs to whichever stage is running; the
+  // entry list is not what is on it.
+  if (mode === 'protocol') return;
 
   const state = store.get();
   const active = activeEntries(state);
@@ -101,8 +160,22 @@ function syncScene(): void {
 function syncControls(options: { clearVerdict?: boolean } = {}): void {
   const state = store.get();
   const active = activeEntries(state).length;
-  drawBtn.disabled = drawing || active === 0;
   sound.enabled = state.settings.sound;
+
+  if (mode === 'protocol') {
+    const stages = stagesFor(protocolConfig);
+    drawBtn.disabled = drawing || stages.length === 0;
+    if (!drawing) {
+      results.setStatusText(
+        stages.length === 0
+          ? 'every class excluded — nothing to draw'
+          : `${stages.length} stages queued · ${WEAPONS.length} weapons on file`,
+      );
+    }
+    return;
+  }
+
+  drawBtn.disabled = drawing || active === 0;
   results.setStatus(
     state.entries.length,
     active,
@@ -111,10 +184,16 @@ function syncControls(options: { clearVerdict?: boolean } = {}): void {
   if (options.clearVerdict && !drawing) results.showIdle();
 }
 
-/** Tear the old scene down and hand the new one the same pool. */
-function swapScene(): void {
+/**
+ * Tear the old scene down and hand the new one the same pool.
+ *
+ * `force` exists for the mode switch: the scene is the Column either way, but
+ * its palette is fixed at construction, so protocol and list need different
+ * instances of it.
+ */
+function swapScene(force = false): void {
   const scene = store.get().settings.scene;
-  if (scene === currentScene) return;
+  if (scene === currentScene && !force) return;
 
   stage.destroy();
   currentScene = scene;
@@ -142,6 +221,141 @@ store.subscribe((state) => {
   syncScene();
   if (!drawing) syncControls();
 });
+
+/* ------------------------------------------------------------------ */
+/* The protocol run                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Bumped on every abandon, so an in-flight run can notice it is stale. */
+let runToken = 0;
+
+/** Throw away whatever the last run left on screen. */
+function clearRun(): void {
+  runToken++;
+  brief.hidden = true;
+  brief.classList.remove('is-working');
+  dossier.clear();
+  stageEl.classList.remove('has-dossier');
+  results.showIdle();
+  stage.setPool([], []);
+  syncControls();
+}
+
+function setBrief(title: string, step: string, text: string, working: boolean): void {
+  brief.hidden = false;
+  briefStep.textContent = step;
+  briefTitle.textContent = title;
+  briefText.textContent = text;
+  brief.classList.toggle('is-working', working);
+}
+
+async function runProtocolDraw(): Promise<void> {
+  if (drawing) return;
+  if (stagesFor(protocolConfig).length === 0) return;
+
+  drawing = true;
+  drawBtn.disabled = true;
+  app.classList.add('is-drawing');
+  dossier.clear();
+  stageEl.classList.remove('has-dossier');
+  results.showIdle();
+
+  const token = ++runToken;
+  const stale = () => token !== runToken;
+
+  let loadout: Loadout | null = null;
+  try {
+    loadout = await runProtocol(
+      protocolConfig,
+      stage,
+      {
+        onStageStart: (current, index, total) => {
+          setBrief(current.title, `Stage ${index + 1} of ${total}`, current.brief, true);
+          results.setStatusText(`${current.options.length} options on the strip`);
+        },
+        onStageDone: (result) => {
+          brief.classList.remove('is-working');
+          const names = result.winners.map((w) => w.label).join(' · ');
+          briefText.textContent = names;
+          announceLive(`${result.stage.title}: ${names}`);
+        },
+        cancelled: stale,
+      },
+      prefersReducedMotion(),
+    );
+  } finally {
+    drawing = false;
+    app.classList.remove('is-drawing');
+  }
+
+  if (stale()) return;
+
+  if (loadout) {
+    setBrief(
+      'Run assembled',
+      `${loadout.results.length} stages resolved`,
+      summarize(loadout),
+      false,
+    );
+    dossier.render(loadout);
+    stageEl.classList.add('has-dossier');
+    results.setStatusText('dossier ready — press again for another run');
+    announceLive(`Run assembled. ${summarize(loadout)}`);
+  }
+
+  syncControls();
+}
+
+function announceLive(text: string): void {
+  must('announce').textContent = text;
+}
+
+/* ------------------------------------------------------------------ */
+/* Switching modes                                                     */
+/* ------------------------------------------------------------------ */
+
+function applyMode(next: Mode): void {
+  mode = next;
+  saveProtocol({ mode, config: protocolConfig });
+
+  app.classList.toggle('is-protocol', mode === 'protocol');
+  modeHint.textContent = MODE_HINTS[mode];
+  drawLabel.textContent = mode === 'protocol' ? 'Run protocol' : 'Draw';
+  must('wordmark-main').textContent = mode === 'protocol' ? 'Tarnished' : 'The Column';
+  wordmarkSub.textContent = mode === 'protocol' ? 'run generator' : 'weighted randomizer';
+  document.title = mode === 'protocol' ? 'Tarnished — run generator' : 'Column & Chamber';
+
+  for (const block of document.querySelectorAll<HTMLElement>('[data-only]')) {
+    show(block, block.dataset['only'] === mode);
+  }
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-mode]')) {
+    const active = button.dataset['mode'] === mode;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-checked', String(active));
+  }
+
+  if (mode === 'protocol') {
+    // The protocol is written for the strip: four pools read in sequence is
+    // not something the particle chamber can express.
+    if (store.get().settings.scene !== 'column') store.patchSettings({ scene: 'column' });
+    swapScene(true);
+    clearRun();
+  } else {
+    clearRun();
+    brief.hidden = true;
+    swapScene(true);
+    poolSignature = '';
+    syncScene();
+    syncControls({ clearVerdict: true });
+  }
+}
+
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-mode]')) {
+  button.addEventListener('click', () => {
+    if (drawing) return;
+    applyMode(button.dataset['mode'] === 'list' ? 'list' : 'protocol');
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* The draw                                                            */
@@ -220,7 +434,7 @@ async function runDraw(): Promise<void> {
   if (ventTimer === undefined) stage.reset();
 }
 
-drawBtn.addEventListener('click', () => void runDraw());
+drawBtn.addEventListener('click', () => void begin());
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== ' ' || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -232,8 +446,13 @@ document.addEventListener('keydown', (event) => {
   if (target && /^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|OPTION)$/.test(target.tagName)) return;
 
   event.preventDefault();
-  void runDraw();
+  void begin();
 });
+
+/** Whichever kind of run the current mode means. */
+function begin(): Promise<void> {
+  return mode === 'protocol' ? runProtocolDraw() : runDraw();
+}
 
 /* ------------------------------------------------------------------ */
 /* Boot                                                                */
@@ -263,8 +482,10 @@ async function boot(): Promise<void> {
   swapScene();
 
   panel.adopt(store.get());
-  syncScene();
-  syncControls({ clearVerdict: true });
+
+  // A shared link is always a list, whatever mode was last saved: someone
+  // handed over entries, so show them the entries.
+  applyMode(shared && shared.entries.length > 0 ? 'list' : mode);
 }
 
 void boot();

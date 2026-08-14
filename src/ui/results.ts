@@ -30,6 +30,12 @@ export function mountResults() {
     }
   }
 
+  /** The same corner readout, written directly. The protocol counts stages,
+   *  not entries, so it has nothing useful to pass to `setStatus`. */
+  function setStatusText(text: string): void {
+    status.textContent = text;
+  }
+
   /** Clear the winner and go back to waiting. */
   function showIdle(): void {
     verdict.classList.remove('is-live', 'verdict--multi');
@@ -115,5 +121,13 @@ export function mountResults() {
     verifyOdds.replaceChildren(...rows);
   }
 
-  return { setStatus, showIdle, showWinners, hideVerdict, showCommitment, showOdds };
+  return {
+    setStatus,
+    setStatusText,
+    showIdle,
+    showWinners,
+    hideVerdict,
+    showCommitment,
+    showOdds,
+  };
 }

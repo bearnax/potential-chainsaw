@@ -9,6 +9,7 @@
  */
 
 import { makeId } from '../data/parse.ts';
+import { defaultConfig, type ProtocolConfig } from '../eldenring/loadout.ts';
 import { defaultSettings } from './store.ts';
 import { LIMITS, type AppState, type Entry, type Settings } from '../types.ts';
 
@@ -92,6 +93,46 @@ export function loadLocal(): { entries: Entry[]; settings: Settings } | null {
     const parsed = fromWire(JSON.parse(raw));
     if (!parsed || parsed.entries.length === 0) return null;
     return { entries: parsed.entries, settings: { ...defaultSettings(), ...parsed.settings } };
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Protocol settings                                                   */
+/* ------------------------------------------------------------------ */
+
+const PROTOCOL_KEY = 'pc.protocol.v1';
+
+/**
+ * Kept in its own key rather than folded into the list payload. The two have
+ * nothing to do with each other — a protocol run has no entries — and the share
+ * link's wire format has no business growing a weapons config it will never
+ * carry.
+ */
+export interface ProtocolSave {
+  mode: 'protocol' | 'list';
+  config: ProtocolConfig;
+}
+
+export function saveProtocol(save: ProtocolSave): void {
+  try {
+    localStorage.setItem(PROTOCOL_KEY, JSON.stringify(save));
+  } catch {
+    /* see saveLocal */
+  }
+}
+
+export function loadProtocol(): ProtocolSave | null {
+  try {
+    const raw = localStorage.getItem(PROTOCOL_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ProtocolSave>;
+    const mode = parsed.mode === 'list' ? 'list' : 'protocol';
+
+    // Merged over the defaults so a config saved before a new option existed
+    // still loads instead of arriving with an undefined field.
+    return { mode, config: { ...defaultConfig(), ...(parsed.config ?? {}) } };
   } catch {
     return null;
   }
