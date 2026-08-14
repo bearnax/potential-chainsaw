@@ -1,9 +1,82 @@
-# The Column
+# Tarnished
 
-A weighted randomizer that makes probability visible.
+An Elden Ring run generator, built on a randomizer that makes probability visible.
 
-Paste a list, drop a CSV, or open a shared link. Every entry becomes a band as
-tall as its share of the weight, and together they fill one continuous strip —
+Press **Run protocol** and four questions get answered in sequence, all in the
+same strip: three weapon classes for the main hand, one ranged sidearm, a school
+of magic, a status effect. Every option is a band as tall as its odds, and the
+odds lean toward the classes I have never used. When the last stage lands, the
+run assembles a **dossier**: for each weapon class drawn, a three-act contract
+and the list of weapons it is not allowed to touch.
+
+**Live:** https://bearnax.github.io/potential-chainsaw/
+
+## The protocol
+
+Four stages, drawn in order down one strip.
+
+| Stage             | What it decides                                    | Where the weights come from          |
+| ----------------- | -------------------------------------------------- | ------------------------------------ |
+| Main armament     | N weapon classes (3 by default)                    | mean familiarity across the class    |
+| Ranged sidearm    | one bow, crossbow, greatbow or ballista            | same, over the ranged classes        |
+| Arcane discipline | intelligence, faith, both, or neither              | the staff and seal rows of the sheet |
+| Status vector     | bleed, rot, poison, frost, sleep, madness, or none | flat — see below                     |
+
+Bows, staves, seals and torches are barred from the main hand by default, which
+is what creates the sidearm stage. Every one of those exclusions is a checkbox,
+and individual classes can be barred by name.
+
+### Where the odds come from
+
+`scripts/weapons-source.csv` is the spreadsheet: 402 weapons, each with a class,
+a DLC flag, and how much I have used it. That last column is the **only** opinion
+in the data. `npm run data` compiles it to `src/eldenring/weapons.ts` as a 0–5
+`familiarity` score, and everything downstream is derived from it at runtime:
+
+- A class's weight is its members' mean familiarity, raised to the
+  **lean toward the unused** exponent. At 0 every class is equally likely; the
+  default of 1.6 makes a class I have never touched roughly ten times likelier
+  than one I have worn out.
+- No class ever drops to zero. A weight floor keeps a worn-out class a long shot
+  rather than an impossibility — making it impossible is what the exclusions are
+  for.
+- Magic weights itself from the catalyst rows, which is the closest thing to
+  usage data a school of magic has in this sheet.
+- **Status effects are flat on purpose.** The sheet has no usage column for them,
+  and invented weights that look derived would be worse than an honest uniform
+  draw.
+
+Edit the CSV, run `npm run data`, and the odds move on their own.
+
+### The lockouts
+
+A weapon class means little on its own when a third of it is something already
+worn out, so every class drawn prints its own progression:
+
+- **Used big time** → **locked out.** Not available in any act.
+- **Used a good bit** → **early only.** Allowed in Act I, dropped after.
+- Everything else is open, freshest first.
+
+The acts gate commitment rather than map progress — there is no acquisition-location
+data in the sheet and none is invented:
+
+- **Act I** (Limgrave to Stormveil) — anything in the class that drops, well-used
+  ones included. Nothing is committed yet.
+- **Act II** (Liurnia to the Capital) — drop the well-used weapons and carry one
+  of a three-weapon shortlist. This is the build now.
+- **Act III** (Mountaintops, endgame, DLC) — finish on one weapon, the freshest in
+  the class. No swapping back.
+
+The progression is deterministic for a given class: the randomness belongs to the
+class draw, and rolling again for the ladder would just be a second chance at a
+worse answer. A class with nothing left to build toward says so rather than
+quietly serving up a repeat.
+
+## List mode
+
+The general-purpose randomizer this was built from is still here, one toggle
+away. Paste a list, drop a CSV, or open a shared link. Every entry becomes a band
+as tall as its share of the weight, and together they fill one continuous strip —
 so the list _is_ the distribution. Hit **Draw** and a single dart runs the strip
 and sticks where it lands.
 
@@ -12,19 +85,33 @@ works by laying every entry's weight end to end and picking one point in the
 total, and `pickWeightedPoints` hands the scene the exact point it picked. The
 marker's resting position is that number.
 
-Because the strip already shows the odds, the animation has nothing to
-re-explain — so it is small, it is over in about a second and a half, and
-**nothing on the page moves until you press Draw.**
-
-**Live:** https://bearnax.github.io/potential-chainsaw/
-
 ### Two scenes
 
-- **The Column** (default) — the quiet one, described above.
+- **The Column** (default, and the only one the protocol uses) — the quiet one.
 - **Entropy Chamber** — the loud one, kept for when a draw is an occasion rather
   than a chore: particles standing in for entries, spun up and imploded to a
-  singularity that blooms back out as the winner. Switchable in the panel and
-  remembered between visits.
+  singularity that blooms back out as the winner.
+
+## How it feels
+
+The pacing is deliberate and the numbers are roughly three times what they
+started as. A stage lays out its pool, a light runs down the whole field once so
+you can read it, then the dart takes four seconds to decide. The draw itself was
+instant and always was — the strip exists so you can watch the machine work, and
+a readout that resolves before you have finished reading it is just a slot
+machine with better manners.
+
+The dressing is the ship displays from the Alien films: one phosphor green rather
+than a spectrum, monospace set wide, a scanline over the stage, and a cursor that
+blinks while a stage is unresolved and stops when it is. It only applies in
+protocol mode; list mode keeps its cool grey instrument look.
+
+Claimed bands stay on the strip. In a list draw a winner collapses to nothing,
+because its weight has genuinely left the total — but a stage drawing three
+classes in a row would lose the first two before you had read them, so in the
+protocol a claimed band keeps a row's worth of height and marks itself taken.
+
+## What it does
 
 ## What it does
 
@@ -78,6 +165,7 @@ npm run dev      # http://localhost:5173/potential-chainsaw/
 npm run check    # tsc --noEmit && vitest run
 npm run build    # -> dist/
 npm run preview  # serve the built site under the Pages base path
+npm run data     # recompile the spreadsheet into src/eldenring/weapons.ts
 ```
 
 No runtime dependencies. Vite and TypeScript are build-time only; the shipped site
@@ -96,7 +184,15 @@ src/
              collapse.ts           the superposed-name reveal
              palette.ts            one stable hue per entry
              audio.ts              WebAudio synthesis
+  eldenring/ weapons.ts            the armoury, generated from the spreadsheet
+             loadout.ts            classification, weighting, rulings, progression
+             protocol.ts           the four stages and how a run assembles
+             run.ts                the sequencer that paces a run
   ui/        panel.ts, results.ts  controls and the stage's text layer
+             protocol-panel.ts     protocol config, built from the armoury
+             dossier.ts            the finished run sheet
+scripts/     build-weapons.mjs     CSV -> weapons.ts
+             weapons-source.csv    the spreadsheet, the source of truth
 tests/                             vitest, run headlessly in CI
 ```
 
@@ -112,7 +208,11 @@ population without touching canvas state again. Counts are apportioned by
 largest remainder with a floor of one particle each, so a long shot never rounds
 away to nothing.
 
-### Known limitation
+### Known limitations
+
+The commit-reveal proof described above covers a list draw only. A protocol run
+is four separate draws and would need four commitments, so the Verify panel is
+hidden in protocol mode rather than shown with nothing behind it.
 
 Past roughly 40 entries no band is tall enough for a label, and the strip becomes
 a ramp of colour rather than a readable list. The distribution is still true and

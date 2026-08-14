@@ -20,6 +20,12 @@ export interface PoolItem {
   readonly label: string;
   /** Position in the full list, so a hue survives elimination and reordering. */
   readonly hueIndex: number;
+  /**
+   * Optional one-line justification for this entry's share, shown inside the
+   * band. The protocol uses it to explain why a weapon class is as likely as
+   * it is; a pasted list has nothing to say and leaves it out.
+   */
+  readonly detail?: string;
 }
 
 export type Phase = 'idle' | 'charge' | 'collapse' | 'bloom' | 'reveal';
@@ -39,6 +45,12 @@ export interface Visualizer {
    * Resolves when the scene has settled.
    */
   run(picks: readonly WeightedPick[]): Promise<void>;
+  /**
+   * Optional pass over the pool before the draw, for scenes that can show the
+   * whole field at a readable pace. The Chamber has no equivalent — its idle
+   * state is already the field — so it leaves this out.
+   */
+  scan?(): Promise<void>;
   /** Send eliminated entries out of the scene. */
   vent(entryIndices: readonly number[]): void;
   /** Return to the resting state, ready for the next draw. */

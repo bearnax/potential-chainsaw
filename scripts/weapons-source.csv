@@ -1,0 +1,403 @@
+Name,Weight,Weapon Type,DLC?,Used
+Battle Axe,3,Axe,⛔️,A little bit
+Celebrant's Cleaver,5,Axe,⛔️,"Not really, no"
+Death Knight's Twin Axes,5,Axe,✅,"Not really, no"
+Forked Hatchet,5,Axe,⛔️,"Not really, no"
+Forked-Tongue Hatchet,5,Axe,✅,"Not really, no"
+Hand Axe,5,Axe,⛔️,"Not really, no"
+Highland Axe,2,Axe,⛔️,Some
+Icerind Hatchet,3,Axe,⛔️,A little bit
+Iron Cleaver,2,Axe,⛔️,Some
+Jawbone Axe,5,Axe,⛔️,"Not really, no"
+Messmer Soldier's Axe,5,Axe,✅,"Not really, no"
+Ripple Blade,5,Axe,⛔️,"Not really, no"
+Rosus' Axe,5,Axe,⛔️,"Not really, no"
+Sacrificial Axe,5,Axe,⛔️,"Not really, no"
+Smithscript Axe,5,Axe,✅,"Not really, no"
+Stormhawk Axe,3,Axe,⛔️,A little bit
+Warped Axe,2,Axe,⛔️,Some
+Backhand Blade,5,Backhand Blade,✅,"Not really, no"
+Curseblade's Cirque,5,Backhand Blade,✅,"Not really, no"
+Smithscript Cirque,5,Backhand Blade,✅,"Not really, no"
+Hand Ballista,5,Ballista,⛔️,"Not really, no"
+Jar Cannon,5,Ballista,⛔️,"Not really, no"
+Rabbath's Cannon,5,Ballista,✅,"Not really, no"
+Beast Claw,5,Beast Claw,✅,"Not really, no"
+Claws of Night,5,Beast Claw,✅,"Not really, no"
+Red Bear's Claw,5,Beast Claw,✅,"Not really, no"
+Albinauric Bow,5,Bow,⛔️,"Not really, no"
+Ansbach's Longbow,5,Bow,✅,"Not really, no"
+Black Bow,2,Bow,⛔️,Some
+Erdtree Bow,2,Bow,⛔️,Some
+Horn Bow,5,Bow,⛔️,"Not really, no"
+Longbow,5,Bow,⛔️,"Not really, no"
+Pulley Bow,5,Bow,⛔️,"Not really, no"
+Serpent Bow,5,Bow,⛔️,"Not really, no"
+Bloodhound Claws,5,Claw,⛔️,"Not really, no"
+Hookclaws,5,Claw,⛔️,"Not really, no"
+Raptor Talons,5,Claw,⛔️,"Not really, no"
+Venomous Fang,5,Claw,⛔️,"Not really, no"
+Ancient Meteoric Ore Greatsword,3,Colossal Sword,✅,A little bit
+Fire Knight's Greatsword,0,Colossal Sword,✅,Big time
+Godslayer's Greatsword,0,Colossal Sword,⛔️,Big time
+Grafted Blade Greatsword,0,Colossal Sword,⛔️,Big time
+Greatsword,0,Colossal Sword,⛔️,Big time
+Greatsword of Radahn (Light),5,Colossal Sword,✅,"Not really, no"
+Greatsword of Radahn (Lord),5,Colossal Sword,✅,"Not really, no"
+Maliketh's Black Blade,1,Colossal Sword,⛔️,A good bit
+Moonrithyll's Knight Sword,5,Colossal Sword,✅,"Not really, no"
+Royal Greatsword,2,Colossal Sword,⛔️,Some
+Ruins Greatsword,0,Colossal Sword,⛔️,Big time
+Starscourge Greatsword,5,Colossal Sword,⛔️,"Not really, no"
+Troll Knight's Sword,3,Colossal Sword,⛔️,A little bit
+Troll's Golden Sword,5,Colossal Sword,⛔️,"Not really, no"
+Watchdog's Greatsword,3,Colossal Sword,⛔️,A little bit
+Zweihander,5,Colossal Sword,⛔️,"Not really, no"
+Anvil Hammer,5,Colossal Weapon,✅,"Not really, no"
+Axe of Godfrey,5,Colossal Weapon,⛔️,"Not really, no"
+Bloodfiend's Arm,5,Colossal Weapon,✅,"Not really, no"
+Devonia's Hammer,5,Colossal Weapon,✅,"Not really, no"
+Dragon Greatclaw,5,Colossal Weapon,⛔️,"Not really, no"
+Duelist Greataxe,5,Colossal Weapon,⛔️,"Not really, no"
+Envoy's Greathorn,5,Colossal Weapon,⛔️,"Not really, no"
+Fallingstar Beast Jaw,5,Colossal Weapon,⛔️,"Not really, no"
+Gazing Finger,5,Colossal Weapon,✅,"Not really, no"
+Ghiza's Wheel,5,Colossal Weapon,⛔️,"Not really, no"
+Giant-Crusher,0,Colossal Weapon,⛔️,Big time
+Golem's Halberd,5,Colossal Weapon,⛔️,"Not really, no"
+Great Club,0,Colossal Weapon,⛔️,Big time
+Prelate's Inferno Crozier,5,Colossal Weapon,⛔️,"Not really, no"
+Rotten Greataxe,5,Colossal Weapon,⛔️,"Not really, no"
+Rotten Staff,5,Colossal Weapon,⛔️,"Not really, no"
+Shadow Sunflower Blossom,5,Colossal Weapon,✅,"Not really, no"
+Staff of the Avatar,2,Colossal Weapon,⛔️,Some
+Troll's Hammer,5,Colossal Weapon,⛔️,"Not really, no"
+Watchdog's Staff,5,Colossal Weapon,⛔️,"Not really, no"
+Arbalest,5,Crossbow,⛔️,"Not really, no"
+Crepus's Black-Key Crossbow,5,Crossbow,⛔️,"Not really, no"
+Full Moon Crossbow,5,Crossbow,⛔️,"Not really, no"
+Heavy Crossbow,5,Crossbow,⛔️,"Not really, no"
+Light Crossbow,5,Crossbow,⛔️,"Not really, no"
+Pulley Crossbow,5,Crossbow,⛔️,"Not really, no"
+Repeating Crossbow,5,Crossbow,✅,"Not really, no"
+Soldier's Crossbow,5,Crossbow,⛔️,"Not really, no"
+Spread Crossbow,5,Crossbow,✅,"Not really, no"
+Beastman's Cleaver,5,Curved Greatsword,⛔️,"Not really, no"
+Bloodhound's Fang,0,Curved Greatsword,⛔️,Big time
+Dismounter,1,Curved Greatsword,⛔️,A good bit
+Horned Warrior's Greatsword,5,Curved Greatsword,✅,"Not really, no"
+Magma Wyrm's Scalesword,2,Curved Greatsword,⛔️,Some
+Monk's Flameblade,1,Curved Greatsword,⛔️,A good bit
+Morgott's Cursed Sword,2,Curved Greatsword,⛔️,Some
+Omen Cleaver,3,Curved Greatsword,⛔️,A little bit
+Onyx Lord's Greatsword,5,Curved Greatsword,⛔️,"Not really, no"
+Zamor Curved Sword,5,Curved Greatsword,⛔️,"Not really, no"
+Bandit's Curved Sword,0,Curved Sword,⛔️,Big time
+Beastman's Curved Sword,5,Curved Sword,⛔️,"Not really, no"
+Dancing Blade of Ranah,5,Curved Sword,✅,"Not really, no"
+Eclipse Shotel,5,Curved Sword,⛔️,"Not really, no"
+Falchion,3,Curved Sword,⛔️,A little bit
+Falx,5,Curved Sword,✅,"Not really, no"
+Flowing Curved Sword,2,Curved Sword,⛔️,Some
+Grossmesser,3,Curved Sword,⛔️,A little bit
+Horned Warrior's Sword,5,Curved Sword,✅,"Not really, no"
+Magma Blade,5,Curved Sword,⛔️,"Not really, no"
+Mantis Blade,5,Curved Sword,⛔️,"Not really, no"
+Nox Flowing Sword,3,Curved Sword,⛔️,A little bit
+Scavenger's Curved Sword,1,Curved Sword,⛔️,A good bit
+Scimitar,2,Curved Sword,⛔️,Some
+Serpent-God's Curved Sword,5,Curved Sword,⛔️,"Not really, no"
+Shamshir,5,Curved Sword,⛔️,"Not really, no"
+Shotel,5,Curved Sword,⛔️,"Not really, no"
+Spirit Sword,5,Curved Sword,✅,"Not really, no"
+Wing of Astel,0,Curved Sword,⛔️,Big time
+Black Knife,3,Dagger,⛔️,A little bit
+Blade of Calling,3,Dagger,⛔️,A little bit
+Bloodstained Dagger,5,Dagger,⛔️,"Not really, no"
+Celebrant's Sickle,5,Dagger,⛔️,"Not really, no"
+Cinquedea,2,Dagger,⛔️,Some
+Crystal Knife,5,Dagger,⛔️,"Not really, no"
+Dagger,5,Dagger,⛔️,"Not really, no"
+Erdsteel Dagger,2,Dagger,⛔️,Some
+Glintstone Kris,3,Dagger,⛔️,A little bit
+Great Knife,5,Dagger,⛔️,"Not really, no"
+Ivory Sickle,5,Dagger,⛔️,"Not really, no"
+Main-gauche,5,Dagger,✅,"Not really, no"
+Misericorde,3,Dagger,⛔️,A little bit
+Parrying Dagger,5,Dagger,⛔️,"Not really, no"
+Reduvia,0,Dagger,⛔️,Big time
+Scorpion's Stinger,5,Dagger,⛔️,"Not really, no"
+Wakizashi,2,Dagger,⛔️,Some
+Caestus,5,Fist,⛔️,"Not really, no"
+Cipher Pata,5,Fist,⛔️,"Not really, no"
+Clinging Bone,5,Fist,⛔️,"Not really, no"
+Golem Fist,5,Fist,✅,"Not really, no"
+Grafted Dragon,5,Fist,⛔️,"Not really, no"
+Iron Ball,5,Fist,⛔️,"Not really, no"
+Katar,5,Fist,⛔️,"Not really, no"
+Madding Hand,5,Fist,✅,"Not really, no"
+Pata,5,Fist,✅,"Not really, no"
+Poisoned Hand,5,Fist,✅,"Not really, no"
+Spiked Caestus,5,Fist,⛔️,"Not really, no"
+Star Fist,5,Fist,⛔️,"Not really, no"
+Thiollier's Hidden Needle,5,Fist,✅,"Not really, no"
+Veteran's Prosthesis,5,Fist,⛔️,"Not really, no"
+Bastard's Stars,0,Flail,⛔️,Big time
+Chainlink Flail,1,Flail,⛔️,A good bit
+Family Heads,2,Flail,⛔️,Some
+Flail,0,Flail,⛔️,Big time
+Nightrider Flail,1,Flail,⛔️,A good bit
+Serpent Flail,2,Flail,✅,Some
+Maternal Staff,5,Glinstone Staff,✅,"Not really, no"
+Staff of the Great Beyond,2,Glinstone Staff,✅,Some
+Academy Glintstone Staff,0,Glintstone Staff,⛔️,Big time
+Albinauric Staff,5,Glintstone Staff,⛔️,"Not really, no"
+Astrologer's Staff,1,Glintstone Staff,⛔️,A good bit
+Azur's Glintstone Staff,0,Glintstone Staff,⛔️,Big time
+Carian Glintblade Staff,2,Glintstone Staff,⛔️,Some
+Carian Glintstone Staff,2,Glintstone Staff,⛔️,Some
+Carian Regal Scepter,2,Glintstone Staff,⛔️,Some
+Crystal Staff,5,Glintstone Staff,⛔️,"Not really, no"
+Demi-Human Queen's Staff,5,Glintstone Staff,⛔️,"Not really, no"
+Digger's Staff,5,Glintstone Staff,⛔️,"Not really, no"
+Gelmir Glintstone Staff,5,Glintstone Staff,⛔️,"Not really, no"
+Glintstone Staff,3,Glintstone Staff,⛔️,A little bit
+Lusat's Glintstone Staff,0,Glintstone Staff,⛔️,Big time
+Meteorite Staff,0,Glintstone Staff,⛔️,Big time
+Prince of Death's Staff,2,Glintstone Staff,⛔️,Some
+Rotten Crystal Staff,5,Glintstone Staff,⛔️,"Not really, no"
+Staff of Loss,0,Glintstone Staff,⛔️,Big time
+Staff of the Guilty,5,Glintstone Staff,⛔️,"Not really, no"
+Black Steel Greathammer,5,Great Hammer,✅,"Not really, no"
+Smithscript Greathammer,5,Great Hammer,✅,"Not really, no"
+Dragon-Hunter's Great Katana,1,Great Katana,✅,A good bit
+Great Katana,0,Great Katana,✅,Big time
+Rakshasa's Great Katana,3,Great Katana,✅,A little bit
+Barbed Staff-Spear,5,Great Spear,✅,"Not really, no"
+Bloodfiend's Sacred Spear,5,Great Spear,✅,"Not really, no"
+Lance,5,Great Spear,⛔️,"Not really, no"
+Messmer Soldier's Spear,5,Great Spear,✅,"Not really, no"
+Mohgwyn's Sacred Spear,2,Great Spear,⛔️,Some
+Serpent-Hunter,1,Great Spear,⛔️,A good bit
+Siluria's Tree,3,Great Spear,⛔️,A little bit
+Spear of the Impaler,5,Great Spear,✅,"Not really, no"
+Treespear,1,Great Spear,⛔️,A good bit
+Vyke's War Spear,0,Great Spear,⛔️,Big time
+Axe of Godrick,5,Greataxe,⛔️,"Not really, no"
+Bonny Butchering Knife,5,Greataxe,✅,"Not really, no"
+Butchering Knife,5,Greataxe,⛔️,"Not really, no"
+Crescent Moon Axe,5,Greataxe,⛔️,"Not really, no"
+Death Knight's Longhaft Axe,5,Greataxe,✅,"Not really, no"
+Executioner's Greataxe,1,Greataxe,⛔️,A good bit
+Gargoyle's Black Axe,3,Greataxe,⛔️,A little bit
+Gargoyle's Great Axe,5,Greataxe,⛔️,"Not really, no"
+Great Omenkiller Cleaver,5,Greataxe,⛔️,"Not really, no"
+Greataxe,3,Greataxe,⛔️,A little bit
+Longhaft Axe,5,Greataxe,⛔️,"Not really, no"
+Putrescence Cleaver,5,Greataxe,✅,"Not really, no"
+Rusted Anchor,3,Greataxe,⛔️,A little bit
+Winged Greathorn,5,Greataxe,⛔️,"Not really, no"
+Erdtree Greatbow,2,Greatbow,⛔️,Some
+Golem Greatbow,5,Greatbow,⛔️,"Not really, no"
+Greatbow,5,Greatbow,⛔️,"Not really, no"
+Igon's Greatbow,5,Greatbow,✅,"Not really, no"
+Lion Greatbow,5,Greatbow,⛔️,"Not really, no"
+Alabaster Lord's Sword,5,Greatsword,✅,"Not really, no"
+Banished Knight's Greatsword,5,Greatsword,⛔️,"Not really, no"
+Bastard Sword,2,Greatsword,⛔️,Some
+Blasphemous Blade,0,Greatsword,⛔️,Big time
+Claymore,0,Greatsword,⛔️,Big time
+Dark Moon Greatsword,0,Greatsword,⛔️,Big time
+Death's Poker,1,Greatsword,⛔️,A good bit
+Flamberge,1,Greatsword,⛔️,A good bit
+Forked Greatsword,5,Greatsword,⛔️,"Not really, no"
+Freyja's Greatsword,5,Greatsword,✅,"Not really, no"
+Gargoyle's Blackblade,3,Greatsword,⛔️,A little bit
+Gargoyle's Greatsword,3,Greatsword,⛔️,A little bit
+Golden Order Greatsword,5,Greatsword,⛔️,"Not really, no"
+Greatsword of Damnation,5,Greatsword,✅,"Not really, no"
+Greatsword of Solitude,5,Greatsword,✅,"Not really, no"
+Helphen's Steeple,5,Greatsword,⛔️,"Not really, no"
+Inseparable Sword,5,Greatsword,⛔️,"Not really, no"
+Iron Greatsword,1,Greatsword,⛔️,A good bit
+Knight's Greatsword,2,Greatsword,⛔️,Some
+Lizard Greatsword,5,Greatsword,✅,"Not really, no"
+Lordsworn's Greatsword,2,Greatsword,⛔️,Some
+Marais Executioner's Sword,0,Greatsword,⛔️,Big time
+Ordovis's Greatsword,2,Greatsword,⛔️,Some
+Queelign's Greatsword,0,Greatsword,✅,Big time
+Sacred Relic Sword,0,Greatsword,⛔️,Big time
+Sword of Milos,5,Greatsword,⛔️,"Not really, no"
+Banished Knight's Halberd,5,Halberd,⛔️,"Not really, no"
+Commander's Standard,5,Halberd,⛔️,"Not really, no"
+Dragon Halberd,5,Halberd,⛔️,"Not really, no"
+Gargoyle's Black Halberd,5,Halberd,⛔️,"Not really, no"
+Gargoyle's Halberd,5,Halberd,⛔️,"Not really, no"
+Glaive,2,Halberd,⛔️,Some
+Golden Halberd,3,Halberd,⛔️,A little bit
+Guardian's Swordspear,1,Halberd,⛔️,A good bit
+Halberd,5,Halberd,⛔️,"Not really, no"
+Loretta's War Sickle,5,Halberd,⛔️,"Not really, no"
+Lucerne,5,Halberd,⛔️,"Not really, no"
+Nightrider Glaive,5,Halberd,⛔️,"Not really, no"
+Pest's Glaive,5,Halberd,⛔️,"Not really, no"
+Poleblade of the Bud,5,Halberd,✅,"Not really, no"
+Ripple Crescent Halberd,5,Halberd,⛔️,"Not really, no"
+Spirit Glaive,5,Halberd,✅,"Not really, no"
+Vulgar Militia Saw,5,Halberd,⛔️,"Not really, no"
+Vulgar Militia Shotel,5,Halberd,⛔️,"Not really, no"
+Club,0,Hammer,⛔️,Big time
+Curved Club,3,Hammer,⛔️,A little bit
+Envoy's Horn,5,Hammer,⛔️,"Not really, no"
+Flowerstone Gavel,5,Hammer,✅,"Not really, no"
+Hammer,1,Hammer,⛔️,A good bit
+Mace,1,Hammer,⛔️,A good bit
+Marika's Hammer,2,Hammer,⛔️,Some
+Monk's Flamemace,0,Hammer,⛔️,Big time
+Morning Star,0,Hammer,⛔️,Big time
+Nox Flowing Hammer,2,Hammer,⛔️,Some
+Ringed Finger,5,Hammer,⛔️,"Not really, no"
+Scepter of the All-Knowing,5,Hammer,⛔️,"Not really, no"
+Spiked Club,0,Hammer,⛔️,Big time
+Stone Club,0,Hammer,⛔️,Big time
+Varre's Bouquet,5,Hammer,⛔️,"Not really, no"
+Warpick,3,Hammer,⛔️,A little bit
+Dane's Footwork,5,Hand-to-Hand Art,✅,"Not really, no"
+Dryleaf Arts,5,Hand-to-Hand Art,✅,"Not really, no"
+Bloody Helice,2,Heavy Thrusting Sword,⛔️,Some
+Dragon King's Cragblade,5,Heavy Thrusting Sword,⛔️,"Not really, no"
+Godskin Stitcher,0,Heavy Thrusting Sword,⛔️,Big time
+Great Epee,1,Heavy Thrusting Sword,⛔️,A good bit
+Sword Lance,5,Heavy Thrusting Sword,✅,"Not really, no"
+Dragonscale Blade,5,Katana,⛔️,"Not really, no"
+Hand of Malenia,5,Katana,⛔️,"Not really, no"
+Meteoric Ore Blade,1,Katana,⛔️,A good bit
+Moonveil,1,Katana,⛔️,A good bit
+Nagakiba,0,Katana,⛔️,Big time
+Rivers of Blood,0,Katana,⛔️,Big time
+Serpentbone Blade,5,Katana,⛔️,"Not really, no"
+Star-Lined Sword,3,Katana,✅,A little bit
+Sword of Night,5,Katana,✅,"Not really, no"
+Uchigatana,0,Katana,⛔️,Big time
+Bone Bow,2,Light Bow,✅,Some
+Composite Bow,2,Light Bow,⛔️,Some
+Harp Bow,5,Light Bow,⛔️,"Not really, no"
+Misbegotten Shortbow,5,Light Bow,⛔️,"Not really, no"
+Red Branch Shortbow,5,Light Bow,⛔️,"Not really, no"
+Shortbow,5,Light Bow,⛔️,"Not really, no"
+Leda's Sword,5,Light Greatsword,✅,"Not really, no"
+Milady,0,Light Greatsword,✅,Big time
+Rellana's Twin Blades,3,Light Greatsword,✅,A little bit
+Chilling Perfume Bottle,5,Perfume Bottle,✅,"Not really, no"
+Deadly Poison Perfume Bottle,5,Perfume Bottle,✅,"Not really, no"
+Firespark Perfume Bottle,5,Perfume Bottle,✅,"Not really, no"
+Frenzyflame Perfume Bottle,5,Perfume Bottle,✅,"Not really, no"
+Lightning Perfume Bottle,5,Perfume Bottle,✅,"Not really, no"
+Grave Scythe,2,Reaper,⛔️,Some
+Halo Scythe,1,Reaper,⛔️,A good bit
+Obsidian Lamina,5,Reaper,✅,"Not really, no"
+Scythe,3,Reaper,⛔️,A little bit
+Winged Scythe,2,Reaper,⛔️,Some
+Clawmark Seal,1,Sacred Seal,⛔️,A good bit
+Dragon Communion Seal,0,Sacred Seal,⛔️,Big time
+Dryleaf Seal,5,Sacred Seal,✅,"Not really, no"
+Erdtree Seal,2,Sacred Seal,⛔️,Some
+Finger Seal,1,Sacred Seal,⛔️,A good bit
+Fire Knight's Seal,5,Sacred Seal,✅,"Not really, no"
+Frenzied Flame Seal,0,Sacred Seal,⛔️,Big time
+Giant's Seal,2,Sacred Seal,⛔️,Some
+Godslayer's Seal,0,Sacred Seal,⛔️,Big time
+Golden Order Seal,5,Sacred Seal,⛔️,"Not really, no"
+Gravel Stone Seal,3,Sacred Seal,⛔️,A little bit
+Spiraltree Seal,#N/A,Sacred Seal,✅,
+Bloodfiend's Fork,5,Spear,✅,"Not really, no"
+Bolt of Gransax,1,Spear,⛔️,A good bit
+Celebrant's Rib-Rake,5,Spear,⛔️,"Not really, no"
+Clayman's Harpoon,2,Spear,⛔️,Some
+Cleanrot Spear,5,Spear,⛔️,"Not really, no"
+Cross-Naginata,0,Spear,⛔️,Big time
+Crystal Spear,5,Spear,⛔️,"Not really, no"
+Death Ritual Spear,2,Spear,⛔️,Some
+Inquisitor's Girandole,5,Spear,⛔️,"Not really, no"
+Iron Spear,3,Spear,⛔️,A little bit
+Partisan,2,Spear,⛔️,Some
+Pike,2,Spear,⛔️,Some
+Rotten Crystal Spear,5,Spear,⛔️,"Not really, no"
+Short Spear,3,Spear,⛔️,A little bit
+Smithscript Spear,5,Spear,✅,"Not really, no"
+Spear,2,Spear,⛔️,Some
+Spiked Spear,1,Spear,⛔️,A good bit
+Swift Spear,5,Spear,✅,"Not really, no"
+Torchpole,5,Spear,⛔️,"Not really, no"
+Broadsword,2,Straight Sword,⛔️,Some
+Cane Sword,5,Straight Sword,⛔️,"Not really, no"
+Carian Knight's Sword,2,Straight Sword,⛔️,Some
+Coded Sword,5,Straight Sword,⛔️,"Not really, no"
+Crystal Sword,5,Straight Sword,⛔️,"Not really, no"
+Fire Knight's Shortsword,5,Straight Sword,✅,"Not really, no"
+Golden Epitaph,3,Straight Sword,⛔️,A little bit
+Lazuli Glintstone Sword,3,Straight Sword,⛔️,A little bit
+Longsword,2,Straight Sword,⛔️,Some
+Lordsworn's Straight Sword,2,Straight Sword,⛔️,Some
+Miquellan Knight's Sword,2,Straight Sword,⛔️,Some
+Noble's Slender Sword,1,Straight Sword,⛔️,A good bit
+Ornamental Straight Sword,1,Straight Sword,⛔️,A good bit
+Regalia of Eochaid,1,Straight Sword,⛔️,A good bit
+Rotten Crystal Sword,5,Straight Sword,⛔️,"Not really, no"
+Short Sword,2,Straight Sword,⛔️,Some
+Stone-Sheathed Sword,5,Straight Sword,✅,"Not really, no"
+Sword of Darkness,5,Straight Sword,✅,"Not really, no"
+Sword of Light,5,Straight Sword,✅,"Not really, no"
+Sword of Night and Flame,0,Straight Sword,⛔️,Big time
+Sword of St. Trina,5,Straight Sword,⛔️,"Not really, no"
+Velvet Sword of St. Trina,5,Straight Sword,✅,"Not really, no"
+Warhawk's Talon,5,Straight Sword,⛔️,"Not really, no"
+Weathered Straight Sword,5,Straight Sword,⛔️,"Not really, no"
+Smithscript Dagger,5,Throwing Blade,✅,"Not really, no"
+Carian Thrusting Shield,5,Thrusting Shield,✅,"Not really, no"
+Dueling Shield,5,Thrusting Shield,✅,"Not really, no"
+Antspur Rapier,1,Thrusting Sword,⛔️,A good bit
+Carian Sorcery Sword,5,Thrusting Sword,✅,"Not really, no"
+Cleanrot Knight's Sword,3,Thrusting Sword,⛔️,A little bit
+Estoc,0,Thrusting Sword,⛔️,Big time
+Frozen Needle,5,Thrusting Sword,⛔️,"Not really, no"
+Noble's Estoc,1,Thrusting Sword,⛔️,A good bit
+Rapier,0,Thrusting Sword,⛔️,Big time
+Rogier's Rapier,0,Thrusting Sword,⛔️,Big time
+Beast-Repellent Torch,2,Torch,⛔️,Some
+Ghostflame Torch,5,Torch,⛔️,"Not really, no"
+Lamenting Visage,5,Torch,✅,"Not really, no"
+Nanaya's Torch,5,Torch,✅,"Not really, no"
+Sentry's Torch,5,Torch,⛔️,"Not really, no"
+St. Trina's Torch,5,Torch,⛔️,"Not really, no"
+Steel-Wire Torch,5,Torch,⛔️,"Not really, no"
+Torch,5,Torch,⛔️,"Not really, no"
+Black Steel Twinblade,5,Twinblade,✅,"Not really, no"
+Eleonora's Poleblade,0,Twinblade,⛔️,Big time
+Euporia,5,Twinblade,✅,"Not really, no"
+Gargoyle's Black Blades,0,Twinblade,⛔️,Big time
+Gargoyle's Twinblade,0,Twinblade,⛔️,Big time
+Godskin Peeler,0,Twinblade,⛔️,Big time
+Twinblade,0,Twinblade,⛔️,Big time
+Twinned Knight Swords,0,Twinblade,⛔️,Big time
+Battle Hammer,5,Warhammer,⛔️,"Not really, no"
+Beastclaw Greathammer,0,Warhammer,⛔️,Big time
+Brick Hammer,2,Warhammer,⛔️,Some
+Celebrant's Skull,5,Warhammer,⛔️,"Not really, no"
+Cranial Vessel Candlestand,5,Warhammer,⛔️,"Not really, no"
+Curved Great Club,3,Warhammer,⛔️,A little bit
+Devourer's Scepter,3,Warhammer,⛔️,A little bit
+Envoy's Long Horn,5,Warhammer,⛔️,"Not really, no"
+Great Mace,3,Warhammer,⛔️,A little bit
+Great Stars,1,Warhammer,⛔️,A good bit
+Greathorn Hammer,5,Warhammer,⛔️,"Not really, no"
+Large Club,5,Warhammer,⛔️,"Not really, no"
+Pickaxe,2,Warhammer,⛔️,Some
+Rotten Battle Hammer,5,Warhammer,⛔️,"Not really, no"
+Giant's Red Braid,5,Whip,⛔️,"Not really, no"
+Hoslow's Petal Whip,5,Whip,⛔️,"Not really, no"
+Magma Whip Candlestick,5,Whip,⛔️,"Not really, no"
+Thorned Whip,5,Whip,⛔️,"Not really, no"
+Tooth Whip,5,Whip,✅,"Not really, no"
+Urumi,5,Whip,⛔️,"Not really, no"
+Whip,5,Whip,⛔️,"Not really, no"

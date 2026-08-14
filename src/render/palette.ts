@@ -71,6 +71,30 @@ export function hueFor(label: string, index: number): Hue {
   };
 }
 
+/**
+ * The protocol's palette: one phosphor, not a spectrum.
+ *
+ * A CRT has a single phosphor and gets its variation from brightness, so the
+ * full-spectrum hues that make a pasted list legible read as wrong the moment
+ * the stage goes green. Bands step through a short cycle of lightness in a
+ * narrow green-to-amber wedge instead, which still separates neighbours but
+ * never leaves the one colour the screen is supposed to be able to make.
+ */
+export function phosphorFor(index: number): Hue {
+  const step = index % 5;
+  const h = 142 + step * 4;
+  const l = 0.4 + step * 0.07;
+  const s = 0.52 - step * 0.04;
+
+  return {
+    h,
+    s,
+    l,
+    rgb: hslToRgb(h, s, l),
+    css: `hsl(${h} ${(s * 100).toFixed(0)}% ${(l * 100).toFixed(0)}%)`,
+  };
+}
+
 /** Hues for a whole list, positionally spread. */
 export function paletteFor(labels: readonly string[]): Hue[] {
   return labels.map((label, i) => hueFor(label, i));

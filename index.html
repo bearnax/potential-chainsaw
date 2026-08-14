@@ -17,12 +17,58 @@
         <header class="panel__head">
           <h1 class="wordmark">
             <span class="wordmark__main" id="wordmark-main">The Column</span>
-            <span class="wordmark__sub">weighted randomizer</span>
+            <span class="wordmark__sub" id="wordmark-sub">weighted randomizer</span>
           </h1>
         </header>
 
         <div class="panel__scroll">
-          <section class="block" aria-labelledby="source-h">
+          <section class="block" aria-labelledby="mode-h">
+            <div class="block__head">
+              <h2 class="block__title" id="mode-h">Mode</h2>
+              <div class="seg" role="radiogroup" aria-labelledby="mode-h">
+                <button
+                  class="seg__btn is-active"
+                  role="radio"
+                  id="mode-protocol"
+                  aria-checked="true"
+                  data-mode="protocol"
+                  type="button"
+                >
+                  Tarnished
+                </button>
+                <button
+                  class="seg__btn"
+                  role="radio"
+                  id="mode-list"
+                  aria-checked="false"
+                  data-mode="list"
+                  type="button"
+                >
+                  List
+                </button>
+              </div>
+            </div>
+            <p class="hint" id="mode-hint">
+              Four stages, one strip: weapon classes, a sidearm, a school of magic, a status effect
+              &mdash; then the lockouts for a fresh playthrough.
+            </p>
+            <label class="check">
+              <input type="checkbox" id="sound" />
+              <span>Sound<em class="check__note">low tones on each phase</em></span>
+            </label>
+          </section>
+
+          <section
+            class="block"
+            id="protocol-block"
+            aria-labelledby="protocol-h"
+            data-only="protocol"
+          >
+            <h2 class="block__title" id="protocol-h">Protocol</h2>
+            <div id="protocol-config"></div>
+          </section>
+
+          <section class="block" aria-labelledby="source-h" data-only="list">
             <div class="block__head">
               <h2 class="block__title" id="source-h">Source</h2>
               <div class="seg" role="tablist" aria-label="Input method">
@@ -104,7 +150,7 @@
             <p class="readout" id="parse-readout" role="status" aria-live="polite">no entries</p>
           </section>
 
-          <section class="block" aria-labelledby="scene-h">
+          <section class="block" aria-labelledby="scene-h" data-only="list">
             <div class="block__head">
               <h2 class="block__title" id="scene-h">Scene</h2>
               <div class="seg" role="radiogroup" aria-labelledby="scene-h">
@@ -135,7 +181,7 @@
             </p>
           </section>
 
-          <section class="block" aria-labelledby="draw-h">
+          <section class="block" aria-labelledby="draw-h" data-only="list">
             <h2 class="block__title" id="draw-h">Draw</h2>
 
             <div class="field field--row">
@@ -182,14 +228,9 @@
                 ></span
               >
             </label>
-
-            <label class="check">
-              <input type="checkbox" id="sound" />
-              <span>Sound</span>
-            </label>
           </section>
 
-          <section class="block" aria-labelledby="pool-h" id="pool-block">
+          <section class="block" aria-labelledby="pool-h" id="pool-block" data-only="list">
             <div class="block__head">
               <h2 class="block__title" id="pool-h">Pool</h2>
               <button class="link" id="restore" type="button" hidden>Restore all</button>
@@ -197,7 +238,7 @@
             <ol class="pool" id="pool"></ol>
           </section>
 
-          <section class="block" aria-labelledby="history-h">
+          <section class="block" aria-labelledby="history-h" data-only="list">
             <div class="block__head">
               <h2 class="block__title" id="history-h">History</h2>
               <button class="link" id="undo" type="button" hidden>Undo</button>
@@ -229,9 +270,17 @@
           <div class="verdict" id="verdict" aria-hidden="true"></div>
         </div>
 
+        <header class="brief" id="brief" hidden>
+          <p class="brief__step" id="brief-step"></p>
+          <h2 class="brief__title" id="brief-title"></h2>
+          <p class="brief__text" id="brief-text"></p>
+        </header>
+
         <div class="column" id="column"></div>
 
         <p class="stage__status" id="stage-status">add entries to begin</p>
+
+        <div class="dossier" id="dossier" hidden></div>
 
         <div class="stage__controls">
           <button class="btn btn--primary" id="draw" type="button" disabled>
