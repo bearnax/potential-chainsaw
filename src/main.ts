@@ -54,7 +54,7 @@ const dossier = mountDossier(dossierHost);
 /**
  * Two things live in this app now.
  *
- * `protocol` is the Elden Ring build sequencer — four staged draws across one
+ * `protocol` is the Elden Ring build sequencer — five staged draws across one
  * field of boxes, then a dossier. `list` is the original general randomizer, kept
  * because the machinery underneath is the same and throwing it away would cost
  * more than the tab it occupies.
@@ -67,8 +67,8 @@ let protocolConfig: ProtocolConfig = saved?.config ?? defaultConfig();
 
 const MODE_HINTS: Record<Mode, string> = {
   protocol:
-    'Four stages, one field: weapon classes, a sidearm, a school of magic, a status effect — ' +
-    'then the lockouts for a fresh playthrough.',
+    'Five stages, one field: weapon classes, a sidearm, three shields, a school of magic, ' +
+    'a status effect — then the lockouts for a fresh playthrough.',
   list: 'Paste or drop a list. Every entry is a band as tall as its odds.',
 };
 
