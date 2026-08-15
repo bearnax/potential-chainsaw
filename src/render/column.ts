@@ -17,6 +17,7 @@
  */
 
 import type { WeightedPick } from '../draw/rng.ts';
+import { decayFrame, shuffledIndices } from './decay.ts';
 import { hueFor, phosphorFor, type Hue } from './palette.ts';
 import type { Phase, PoolItem, Visualizer, VisualizerEvents } from './visualizer.ts';
 
@@ -45,22 +46,6 @@ const SWEEP_LOOPS = 4;
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const easeOutQuart = (t: number): number => 1 - Math.pow(1 - t, 4);
-
-/** Glyphs a decoding name flickers through before a character locks in. */
-const SCRAMBLE_CHARS = 'X%#@!&*()[]:;<>+=~^?/\\';
-
-const scrambleChar = (): string =>
-  SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]!;
-
-/** Fisher-Yates, so which characters lock in first is different every time. */
-function shuffledIndices(n: number): number[] {
-  const order = Array.from({ length: n }, (_, i) => i);
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [order[i], order[j]] = [order[j]!, order[i]!];
-  }
-  return order;
-}
 
 export interface ColumnHandlers {
   /** Remove an entry from the pool entirely. */
@@ -414,12 +399,7 @@ export class Column implements Visualizer {
     return new Promise((resolve) => {
       const tick = (now: number) => {
         const t = Math.min(1, (now - start) / duration);
-        const lockedCount = Math.floor(target.length * easeOutQuart(t));
-        const locked = new Set(order.slice(0, lockedCount));
-
-        el.textContent = Array.from(target)
-          .map((ch, i) => (ch === ' ' || locked.has(i) ? ch : scrambleChar()))
-          .join('');
+        el.textContent = decayFrame(target, order, easeOutQuart(t));
 
         if (t < 1) {
           this.raf = requestAnimationFrame(tick);

@@ -54,6 +54,8 @@
 .app.is-protocol .stage__status,
 .app.is-protocol .verdict,
 .app.is-protocol .band__name,
+.app.is-protocol .cell__name,
+.app.is-protocol .cell__pct,
 .app.is-protocol .btn__label {
   font-family: var(--font-mono);
 }
@@ -180,6 +182,48 @@
   text-shadow: 0 0 8px var(--accent-glow);
 }
 
+/* ---------- The field, in protocol dress ---------- */
+
+.app.is-protocol .cell__name {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.app.is-protocol .cell__detail {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* A box still resolving out of noise glows rather than sits — the field should
+   look like it is being read, not like it failed to load. */
+.app.is-protocol .cell.is-noise {
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.app.is-protocol .cell.is-noise .cell__name,
+.app.is-protocol .cell__name.is-decoding {
+  color: var(--accent-dim);
+  text-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* The cursor is inside this box's stretch of the running total. */
+.app.is-protocol .cell.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+
+.app.is-protocol .cell.is-won {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent-glow),
+    0 0 22px var(--accent-glow);
+}
+
+.app.is-protocol .cell.is-won .cell__name {
+  color: var(--accent);
+}
+
 /* The pass before the dart: every band lights in turn, top to bottom, so the
    whole field is read once at a human pace before anything is chosen. */
 .column.is-scanning .band {
@@ -265,6 +309,14 @@
 .stage.has-dossier .column {
   flex: 0 0 auto;
   height: clamp(120px, 24vh, 240px);
+}
+
+/* The field shrinks to whatever its last stage actually needed — a seven-box
+   status field reserving a full strip's worth of height would leave a hole
+   between the result and the dossier. */
+.stage.has-dossier .grid {
+  flex: 0 1 auto;
+  max-height: clamp(120px, 24vh, 240px);
 }
 
 .stage.has-dossier .dossier {

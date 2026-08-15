@@ -3,8 +3,8 @@
 An Elden Ring run generator, built on a randomizer that makes probability visible.
 
 Press **Run protocol** and four questions get answered in sequence, all in the
-same strip: three weapon classes for the main hand, one ranged sidearm, a school
-of magic, a status effect. Every option is a band as tall as its odds, and the
+same field: three weapon classes for the main hand, one ranged sidearm, a school
+of magic, a status effect. Every option is a box carrying its own odds, and the
 odds lean toward the classes I have never used. When the last stage lands, the
 run assembles a **dossier**: for each weapon class drawn, a three-act contract
 and the list of weapons it is not allowed to touch.
@@ -13,7 +13,7 @@ and the list of weapons it is not allowed to touch.
 
 ## The protocol
 
-Four stages, drawn in order down one strip.
+Four stages, drawn in order across one field of boxes.
 
 | Stage             | What it decides                                    | Where the weights come from          |
 | ----------------- | -------------------------------------------------- | ------------------------------------ |
@@ -85,31 +85,50 @@ works by laying every entry's weight end to end and picking one point in the
 total, and `pickWeightedPoints` hands the scene the exact point it picked. The
 marker's resting position is that number.
 
-### Two scenes
+### Three scenes
 
-- **The Column** (default, and the only one the protocol uses) — the quiet one.
+- **The Column** (default) — the quiet one. Every entry is a band as tall as its
+  odds, and a single dart runs the strip and sticks where it lands.
+- **The Grid** — the one the protocol uses. Every entry is a box with its odds as
+  a meter, and the draw walks the field. Boxes trade area-as-probability for a
+  field where dozens of things visibly change at once.
 - **Entropy Chamber** — the loud one, kept for when a draw is an occasion rather
   than a chore: particles standing in for entries, spun up and imploded to a
   singularity that blooms back out as the winner.
 
 ## How it feels
 
-The pacing is deliberate and the numbers are roughly three times what they
-started as. A stage lays out its pool, a light runs down the whole field once so
-you can read it, then the dart takes four seconds to decide. The draw itself was
-instant and always was — the strip exists so you can watch the machine work, and
-a readout that resolves before you have finished reading it is just a slot
-machine with better manners.
+Every option is a box in a grid. A stage runs in three movements:
+
+1. **Noise.** The field arrives unreadable — every box churning through a
+   punctuation alphabet — and resolves box by box in a wave, so you see the
+   whole set of options at a pace you can actually read.
+2. **The walk.** A cursor advances through the boxes in order. Each one it
+   clears goes dark: that is a box the drawn point was _not_ in. This is not
+   decoration — weighted selection works by walking a running total until it
+   passes the point the RNG picked, and that is literally what the cursor is
+   doing. A fat option takes longer to cross because it owns more of the total.
+   The wave laps the field a couple of times and decelerates, because a point
+   landing in the second box of thirty-two would otherwise resolve instantly.
+3. **The decay.** The cursor stops inside the box holding the point, and that
+   box's name dissolves into noise and resolves back out of it, character by
+   character in scattered order. The last thing that happens is the readout
+   becoming legible.
+
+The pacing is deliberate throughout — the draw itself was instant and always
+was. The field exists so you can watch the machine work, and a readout that
+resolves before you have finished reading it is just a slot machine with better
+manners.
 
 The dressing is the ship displays from the Alien films: one phosphor green rather
 than a spectrum, monospace set wide, a scanline over the stage, and a cursor that
 blinks while a stage is unresolved and stops when it is. It only applies in
 protocol mode; list mode keeps its cool grey instrument look.
 
-Claimed bands stay on the strip. In a list draw a winner collapses to nothing,
-because its weight has genuinely left the total — but a stage drawing three
-classes in a row would lose the first two before you had read them, so in the
-protocol a claimed band keeps a row's worth of height and marks itself taken.
+Claimed boxes stay in the field. Their weight has genuinely left the total and
+they are skipped by later walks, but a stage drawing three classes in a row would
+lose the first two before you had read them, so a claimed box stays put and marks
+itself taken.
 
 ## What it does
 
@@ -178,8 +197,10 @@ src/
   draw/      rng.ts, commit.ts     randomness and the commit-reveal
   data/      parse.ts              paste parser + RFC 4180 CSV reader
   state/     store.ts, persist.ts  app state, localStorage, share links
-  render/    visualizer.ts         the Visualizer contract, shared by both scenes
+  render/    visualizer.ts         the Visualizer contract, shared by every scene
              column.ts             the strip and the dart (DOM, no canvas)
+             grid.ts               the field of boxes and the walk (DOM)
+             decay.ts              noise-to-legible text, shared by both
              chamber.ts            the particle simulation
              collapse.ts           the superposed-name reveal
              palette.ts            one stable hue per entry

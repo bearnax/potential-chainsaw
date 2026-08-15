@@ -49,7 +49,7 @@
               </div>
             </div>
             <p class="hint" id="mode-hint">
-              Four stages, one strip: weapon classes, a sidearm, a school of magic, a status effect
+              Four stages, one field: weapon classes, a sidearm, a school of magic, a status effect
               &mdash; then the lockouts for a fresh playthrough.
             </p>
             <label class="check">
@@ -167,6 +167,16 @@
                 <button
                   class="seg__btn"
                   role="radio"
+                  id="scene-grid"
+                  aria-checked="false"
+                  data-scene="grid"
+                  type="button"
+                >
+                  Grid
+                </button>
+                <button
+                  class="seg__btn"
+                  role="radio"
                   id="scene-chamber"
                   aria-checked="false"
                   data-scene="chamber"
@@ -277,6 +287,8 @@
         </header>
 
         <div class="column" id="column"></div>
+
+        <div class="grid" id="grid"></div>
 
         <p class="stage__status" id="stage-status">add entries to begin</p>
 

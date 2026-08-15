@@ -63,7 +63,7 @@ function fromWire(payload: unknown): { entries: Entry[]; settings: Partial<Setti
 
   const s = data.s ?? {};
   const settings: Partial<Settings> = {};
-  if (s.scene === 'column' || s.scene === 'chamber') settings.scene = s.scene;
+  if (s.scene === 'column' || s.scene === 'chamber' || s.scene === 'grid') settings.scene = s.scene;
   if (typeof s.count === 'number' && s.count >= 1) settings.count = Math.floor(s.count);
   if (typeof s.useWeights === 'boolean') settings.useWeights = s.useWeights;
   if (typeof s.eliminate === 'boolean') settings.eliminate = s.eliminate;
