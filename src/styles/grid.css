@@ -264,8 +264,24 @@
     padding: 18px 16px calc(clamp(28px, 6vh, 56px) + 68px);
   }
 
+  .stage.scene-grid.has-dossier {
+    padding: 18px 16px 24px;
+  }
+
   .board {
-    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .cell {
+    min-height: 74px;
+    padding: 10px 12px 9px;
+  }
+
+  .cell__name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }
 

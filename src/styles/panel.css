@@ -593,6 +593,19 @@
   color: var(--accent);
 }
 
+@media (max-width: 860px) {
+  .stepper__btn {
+    width: 40px;
+    height: 44px;
+  }
+
+  .cell__drop,
+  .pool__drop {
+    padding: 10px;
+    opacity: 1;
+  }
+}
+
 /* While the chamber is spinning the panel recedes so the stage owns attention. */
 .app.is-drawing .panel {
   opacity: 0.35;

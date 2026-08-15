@@ -216,14 +216,23 @@
 
   .app {
     grid-template-columns: 1fr;
-    grid-template-rows: 56vh auto;
+    grid-template-rows: auto auto;
     height: auto;
     min-height: 100dvh;
   }
 
   .stage {
     order: -1;
+    min-height: 0;
+  }
+
+  .stage:not(.has-dossier) {
     min-height: 56vh;
+  }
+
+  .stage.has-dossier {
+    overflow: visible;
+    padding-bottom: 24px;
   }
 
   .panel {

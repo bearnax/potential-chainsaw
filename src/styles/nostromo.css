@@ -581,6 +581,36 @@
   font-variant-numeric: tabular-nums;
 }
 
+@media (max-width: 860px) {
+  .stage.has-dossier .column,
+  .stage.has-dossier .grid {
+    flex: none;
+    max-height: 88px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .stage.has-dossier .dossier {
+    flex: none;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .stage__controls {
+    position: static;
+    transform: none;
+    margin: 16px auto 0;
+    width: 100%;
+    padding: 0 16px;
+  }
+
+  .stage__controls .btn--primary {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .column.is-scanning .band {
     animation: none;
