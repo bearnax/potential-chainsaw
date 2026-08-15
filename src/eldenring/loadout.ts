@@ -11,6 +11,7 @@
  * `scripts/build-weapons.mjs` after changing it and the odds move on their own.
  */
 
+import { SHIELDS } from './shields.ts';
 import { WEAPONS, type Weapon } from './weapons.ts';
 
 /* ------------------------------------------------------------------ */
@@ -101,13 +102,17 @@ function weightFrom(freshness: number, bias: number): number {
   return 0.08 + Math.pow(normalized, bias) * 4.92;
 }
 
-function describeFreshness(freshness: number, members: number): string {
-  const noun = `${members} weapon${members === 1 ? '' : 's'}`;
+/** `noun` is already pluralised/counted by the caller, e.g. "3 weapons". */
+function freshnessLabel(freshness: number, noun: string): string {
   if (freshness >= 4.5) return `${noun} · untouched`;
   if (freshness >= 3.5) return `${noun} · barely used`;
   if (freshness >= 2.5) return `${noun} · dabbled`;
   if (freshness >= 1.5) return `${noun} · well used`;
   return `${noun} · worn out`;
+}
+
+function describeFreshness(freshness: number, members: number): string {
+  return freshnessLabel(freshness, `${members} weapon${members === 1 ? '' : 's'}`);
 }
 
 function typeOptions(types: readonly string[], config: ProtocolConfig): Option[] {
@@ -186,6 +191,27 @@ export function magicOptions(config: ProtocolConfig): Option[] {
       detail: 'split stats, two catalysts, thin damage until late',
     },
     {
+      // Arcane has no dedicated catalyst type in the sheet the way sorceries and
+      // incantations do, so — same call as `statusOptions` — an honest flat
+      // weight beats a derived one with nothing behind it.
+      id: 'magic:arc',
+      label: 'Arcane — arcane-scaling',
+      weight: 1.4,
+      detail: 'no catalyst familiarity data — flat odds',
+    },
+    {
+      id: 'magic:int_arc',
+      label: 'Intelligence + Arcane — hybrid',
+      weight: weightFrom(int, bias) * 0.75,
+      detail: `staves ${int.toFixed(1)}/5 unused · arcane flat`,
+    },
+    {
+      id: 'magic:faith_arc',
+      label: 'Faith + Arcane — hybrid',
+      weight: weightFrom(faith, bias) * 0.75,
+      detail: `seals ${faith.toFixed(1)}/5 unused · arcane flat`,
+    },
+    {
       id: 'magic:none',
       label: 'Neither — no catalyst',
       weight: 1.2,
@@ -218,6 +244,24 @@ export function statusOptions(): Option[] {
   ];
 }
 
+/**
+ * The shield stage draws individual shields directly rather than a type first
+ * — three per run is a hand, not a class — so each shield is its own option,
+ * weighted the same way a weapon type is, and a shield used "big time" is
+ * dropped from the pool entirely rather than merely disfavoured. That is what
+ * "locked out" means here: it cannot be drawn this run, full stop.
+ */
+export function shieldOptions(config: ProtocolConfig): Option[] {
+  return SHIELDS.filter((s) => (config.dlc || !s.dlc) && standingFor(s.familiarity) !== 'locked').map(
+    (s) => ({
+      id: `shield:${s.name}`,
+      label: s.name,
+      weight: weightFrom(s.familiarity, config.freshnessBias),
+      detail: freshnessLabel(s.familiarity, s.type),
+    }),
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* The progression                                                     */
 /* ------------------------------------------------------------------ */
@@ -231,24 +275,29 @@ export interface Ruling {
 }
 
 /**
- * Where a single weapon stands in a fresh run.
- *
- * The two thresholds are the whole lockout system: a weapon I have used "big
- * time" is off the table, and one I have used "a good bit" is allowed only as
- * something to pick up on the way, never as the build.
+ * The two thresholds are the whole lockout system: anything used "big time"
+ * is off the table, and anything used "a good bit" is allowed only as
+ * something to pick up on the way, never as the build. Shared by weapons and
+ * shields alike so a lockout means the same thing everywhere in the app.
  */
+export function standingFor(familiarity: number): Standing {
+  if (familiarity <= 0) return 'locked';
+  if (familiarity <= 1) return 'restricted';
+  return 'open';
+}
+
+/** Where a single weapon stands in a fresh run. */
 export function rulingFor(weapon: Weapon): Ruling {
-  if (weapon.familiarity <= 0) {
-    return { weapon, standing: 'locked', reason: 'used big time — locked out' };
-  }
-  if (weapon.familiarity <= 1) {
-    return { weapon, standing: 'restricted', reason: 'used a good bit — early only' };
-  }
-  return {
-    weapon,
-    standing: 'open',
-    reason: weapon.familiarity >= 5 ? 'never really touched' : 'barely used',
-  };
+  const standing = standingFor(weapon.familiarity);
+  const reason =
+    standing === 'locked'
+      ? 'used big time — locked out'
+      : standing === 'restricted'
+        ? 'used a good bit — early only'
+        : weapon.familiarity >= 5
+          ? 'never really touched'
+          : 'barely used';
+  return { weapon, standing, reason };
 }
 
 export interface Act {

@@ -10,10 +10,13 @@ import {
   progressionFor,
   rangedOptions,
   rulingFor,
+  shieldOptions,
+  standingFor,
   statusOptions,
   type ProtocolConfig,
 } from '../src/eldenring/loadout.ts';
 import { assemble, stagesFor, summarize } from '../src/eldenring/protocol.ts';
+import { SHIELDS } from '../src/eldenring/shields.ts';
 import { WEAPONS, WEAPON_TYPES } from '../src/eldenring/weapons.ts';
 
 const config = (patch: Partial<ProtocolConfig> = {}): ProtocolConfig => ({
@@ -118,6 +121,9 @@ describe('weighting', () => {
       'magic:int',
       'magic:faith',
       'magic:both',
+      'magic:arc',
+      'magic:int_arc',
+      'magic:faith_arc',
       'magic:none',
     ]);
     for (const option of options) expect(option.weight).toBeGreaterThan(0);
@@ -126,6 +132,22 @@ describe('weighting', () => {
   it('keeps the status draw flat, since the sheet has no usage for it', () => {
     const weights = new Set(statusOptions().map((o) => o.weight));
     expect(weights).toEqual(new Set([1]));
+  });
+});
+
+describe('shields', () => {
+  it('excludes locked shields from the pool entirely rather than merely disfavouring them', () => {
+    const locked = SHIELDS.filter((s) => standingFor(s.familiarity) === 'locked');
+    if (locked.length === 0) return; // sheet ships all at 3/5 until hand-tuned
+    const ids = new Set(shieldOptions(config()).map((o) => o.id));
+    for (const shield of locked) expect(ids.has(`shield:${shield.name}`)).toBe(false);
+  });
+
+  it('drops DLC shields when the switch is off', () => {
+    const withDlc = shieldOptions(config({ dlc: true })).map((o) => o.label);
+    const without = shieldOptions(config({ dlc: false })).map((o) => o.label);
+    expect(withDlc).toContain('Shield of Night');
+    expect(without).not.toContain('Shield of Night');
   });
 });
 
@@ -209,8 +231,14 @@ describe('progression', () => {
 });
 
 describe('the sequence', () => {
-  it('asks the four questions in order', () => {
-    expect(stagesFor(config()).map((s) => s.id)).toEqual(['melee', 'ranged', 'magic', 'status']);
+  it('asks the five questions in order', () => {
+    expect(stagesFor(config()).map((s) => s.id)).toEqual([
+      'melee',
+      'ranged',
+      'shields',
+      'magic',
+      'status',
+    ]);
   });
 
   it('draws the requested number of weapon classes', () => {
@@ -227,7 +255,12 @@ describe('the sequence', () => {
 
   it('drops a stage with nothing in it rather than hanging on it', () => {
     const noRanged = config({ excludedTypes: [...WEAPON_TYPES] });
-    expect(stagesFor(noRanged).map((s) => s.id)).toEqual(['magic', 'status']);
+    expect(stagesFor(noRanged).map((s) => s.id)).toEqual(['shields', 'magic', 'status']);
+  });
+
+  it('always draws exactly three shields', () => {
+    const shields = stagesFor(config()).find((s) => s.id === 'shields')!;
+    expect(shields.count).toBe(3);
   });
 
   it('builds a progression for every weapon class it drew, bow included', () => {

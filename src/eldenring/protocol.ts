@@ -11,6 +11,7 @@ import {
   meleeOptions,
   progressionFor,
   rangedOptions,
+  shieldOptions,
   statusOptions,
   type Option,
   type Progression,
@@ -18,7 +19,7 @@ import {
 } from './loadout.ts';
 
 export interface Stage {
-  readonly id: 'melee' | 'ranged' | 'magic' | 'status';
+  readonly id: 'melee' | 'ranged' | 'shields' | 'magic' | 'status';
   /** Shown as the stage's heading while it runs. */
   readonly title: string;
   /** The line under it — what this stage is deciding and why. */
@@ -46,6 +47,13 @@ export function stagesFor(config: ProtocolConfig): Stage[] {
       brief: 'one thing to pull aggro and finish runners',
       count: 1,
       options: ranged,
+    },
+    {
+      id: 'shields',
+      title: 'Shield loadout',
+      brief: 'three shields for the run, weighted toward the ones I have never touched; worn-out ones never come up',
+      count: 3,
+      options: shieldOptions(config),
     },
     {
       id: 'magic',
