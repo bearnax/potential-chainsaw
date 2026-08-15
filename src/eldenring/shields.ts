@@ -31,7 +31,7 @@ export const SHIELDS: readonly Shield[] = [
   { name: 'Verdigris Greatshield', type: 'Greatshield', dlc: true, familiarity: 3 },
   { name: 'Blue Crest Heater Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
   { name: 'Brass Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
-  { name: 'Carian Knight\'s Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+  { name: "Carian Knight's Shield", type: 'Medium Shield', dlc: false, familiarity: 3 },
   { name: 'Dragon Crest Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
   { name: 'Dueling Shield', type: 'Medium Shield', dlc: true, familiarity: 3 },
   { name: 'Fingerprint Stone Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
@@ -50,7 +50,7 @@ export const SHIELDS: readonly Shield[] = [
   { name: 'Ice Crest Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
   { name: 'Iron Roundshield', type: 'Small Shield', dlc: false, familiarity: 3 },
   { name: 'Leather Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
-  { name: 'Man-Serpent\'s Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+  { name: "Man-Serpent's Shield", type: 'Small Shield', dlc: false, familiarity: 3 },
   { name: 'Rickety Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
   { name: 'Rift Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
   { name: 'Riveted Wooden Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
@@ -59,8 +59,4 @@ export const SHIELDS: readonly Shield[] = [
 ];
 
 /** Every distinct shield type in the sheet, alphabetically. */
-export const SHIELD_TYPES: readonly string[] = [
-  'Greatshield',
-  'Medium Shield',
-  'Small Shield',
-];
+export const SHIELD_TYPES: readonly string[] = ['Greatshield', 'Medium Shield', 'Small Shield'];

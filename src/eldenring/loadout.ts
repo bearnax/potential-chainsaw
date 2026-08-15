@@ -252,14 +252,14 @@ export function statusOptions(): Option[] {
  * "locked out" means here: it cannot be drawn this run, full stop.
  */
 export function shieldOptions(config: ProtocolConfig): Option[] {
-  return SHIELDS.filter((s) => (config.dlc || !s.dlc) && standingFor(s.familiarity) !== 'locked').map(
-    (s) => ({
-      id: `shield:${s.name}`,
-      label: s.name,
-      weight: weightFrom(s.familiarity, config.freshnessBias),
-      detail: freshnessLabel(s.familiarity, s.type),
-    }),
-  );
+  return SHIELDS.filter(
+    (s) => (config.dlc || !s.dlc) && standingFor(s.familiarity) !== 'locked',
+  ).map((s) => ({
+    id: `shield:${s.name}`,
+    label: s.name,
+    weight: weightFrom(s.familiarity, config.freshnessBias),
+    detail: freshnessLabel(s.familiarity, s.type),
+  }));
 }
 
 /* ------------------------------------------------------------------ */

@@ -51,7 +51,8 @@ export function stagesFor(config: ProtocolConfig): Stage[] {
     {
       id: 'shields',
       title: 'Shield loadout',
-      brief: 'three shields for the run, weighted toward the ones I have never touched; worn-out ones never come up',
+      brief:
+        'three shields for the run, weighted toward the ones I have never touched; worn-out ones never come up',
       count: 3,
       options: shieldOptions(config),
     },
