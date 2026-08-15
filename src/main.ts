@@ -2,6 +2,7 @@ import './styles/tokens.css';
 import './styles/layout.css';
 import './styles/panel.css';
 import './styles/column.css';
+import './styles/grid.css';
 import './styles/nostromo.css';
 
 import { commitTo, type Commitment } from './draw/commit.ts';
@@ -12,13 +13,14 @@ import { runProtocol } from './eldenring/run.ts';
 import { normalizeWeight, oddsOf, pickWeightedPoints, randomNonce } from './draw/rng.ts';
 import { Chamber } from './render/chamber.ts';
 import { Column } from './render/column.ts';
+import { Grid } from './render/grid.ts';
 import { Sound } from './render/audio.ts';
 import type { PoolItem, Visualizer } from './render/visualizer.ts';
 import { loadLocal, loadProtocol, readShareUrl, saveLocal, saveProtocol } from './state/persist.ts';
 import { activeEntries, effectiveWeights, Store } from './state/store.ts';
 import { must, prefersReducedMotion, show } from './ui/dom.ts';
 import { mountDossier } from './ui/dossier.ts';
-import { mountPanel } from './ui/panel.ts';
+import { mountPanel, SCENE_COPY_BY_SCENE } from './ui/panel.ts';
 import { mountProtocolPanel } from './ui/protocol-panel.ts';
 import { mountResults } from './ui/results.ts';
 import type { AppState, Entry, Scene } from './types.ts';
@@ -27,6 +29,7 @@ const app = must('app-root');
 const stageEl = must('stage');
 const canvas = must<HTMLCanvasElement>('stage-canvas');
 const columnHost = must('column');
+const gridHost = must('grid');
 const drawBtn = must<HTMLButtonElement>('draw');
 const drawLabel = drawBtn.querySelector<HTMLElement>('.btn__label')!;
 const poolBlock = must('pool-block');
@@ -37,6 +40,7 @@ const briefText = must('brief-text');
 const dossierHost = must('dossier');
 const modeHint = must('mode-hint');
 const wordmarkSub = must('wordmark-sub');
+const wordmarkMain = must('wordmark-main');
 
 const store = new Store();
 const sound = new Sound();
@@ -50,8 +54,8 @@ const dossier = mountDossier(dossierHost);
 /**
  * Two things live in this app now.
  *
- * `protocol` is the Elden Ring build sequencer — four staged draws down one
- * strip, then a dossier. `list` is the original general randomizer, kept
+ * `protocol` is the Elden Ring build sequencer — four staged draws across one
+ * field of boxes, then a dossier. `list` is the original general randomizer, kept
  * because the machinery underneath is the same and throwing it away would cost
  * more than the tab it occupies.
  */
@@ -63,7 +67,7 @@ let protocolConfig: ProtocolConfig = saved?.config ?? defaultConfig();
 
 const MODE_HINTS: Record<Mode, string> = {
   protocol:
-    'Four stages, one strip: weapon classes, a sidearm, a school of magic, a status effect — ' +
+    'Four stages, one field: weapon classes, a sidearm, a school of magic, a status effect — ' +
     'then the lockouts for a fresh playthrough.',
   list: 'Paste or drop a list. Every entry is a band as tall as its odds.',
 };
@@ -87,20 +91,30 @@ function makeScene(scene: Scene): Visualizer {
 
   stageEl.classList.toggle('scene-column', scene === 'column');
   stageEl.classList.toggle('scene-chamber', scene === 'chamber');
-  // In Column mode the strip *is* the pool list, so the panel's copy of it
+  stageEl.classList.toggle('scene-grid', scene === 'grid');
+  // The strip and the field both *are* the pool list, so the panel's copy of it
   // would be the same information twice.
-  poolBlock.hidden = scene === 'column';
+  poolBlock.hidden = scene !== 'chamber';
+
+  const onRemove = (id: string) => {
+    store.removeEntry(id);
+    panel.syncFromStore();
+  };
 
   if (scene === 'chamber') return new Chamber(canvas, events);
+
+  if (scene === 'grid') {
+    return new Grid(
+      gridHost,
+      events,
+      { onRemove },
+      { palette: mode === 'protocol' ? 'phosphor' : 'spectrum' },
+    );
+  }
   return new Column(
     columnHost,
     events,
-    {
-      onRemove: (id) => {
-        store.removeEntry(id);
-        panel.syncFromStore();
-      },
-    },
+    { onRemove },
     {
       palette: mode === 'protocol' ? 'phosphor' : 'spectrum',
       revealStyle: mode === 'protocol' ? 'decay' : 'dart',
@@ -160,6 +174,13 @@ function syncScene(): void {
   results.showOdds(state.entries, fullOdds(state), lastCommitment);
 }
 
+/** Where the entries are, in the corner readout's words. */
+const WHERE: Record<Scene, string> = {
+  column: 'on the strip',
+  grid: 'in the field',
+  chamber: 'in the chamber',
+};
+
 function syncControls(options: { clearVerdict?: boolean } = {}): void {
   const state = store.get();
   const active = activeEntries(state).length;
@@ -179,11 +200,7 @@ function syncControls(options: { clearVerdict?: boolean } = {}): void {
   }
 
   drawBtn.disabled = drawing || active === 0;
-  results.setStatus(
-    state.entries.length,
-    active,
-    state.settings.scene === 'column' ? 'on the strip' : 'in the chamber',
-  );
+  results.setStatus(state.entries.length, active, WHERE[state.settings.scene]);
   if (options.clearVerdict && !drawing) results.showIdle();
 }
 
@@ -208,6 +225,7 @@ function swapScene(force = false): void {
   poolSignature = '';
   syncScene();
   syncControls({ clearVerdict: true });
+  syncWordmark();
 }
 
 const panel = mountPanel(store, {
@@ -274,7 +292,7 @@ async function runProtocolDraw(): Promise<void> {
       {
         onStageStart: (current, index, total) => {
           setBrief(current.title, `Stage ${index + 1} of ${total}`, current.brief, true);
-          results.setStatusText(`${current.options.length} options on the strip`);
+          results.setStatusText(`${current.options.length} options in the field`);
         },
         onStageDone: (result) => {
           brief.classList.remove('is-working');
@@ -317,6 +335,16 @@ function announceLive(text: string): void {
 /* Switching modes                                                     */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The wordmark names whatever is the bigger idea on screen: in protocol mode
+ * that is the run generator, and in list mode it is the scene you picked.
+ */
+function syncWordmark(): void {
+  const scene = store.get().settings.scene;
+  wordmarkMain.textContent = mode === 'protocol' ? 'Tarnished' : SCENE_COPY_BY_SCENE[scene].name;
+  wordmarkSub.textContent = mode === 'protocol' ? 'run generator' : 'weighted randomizer';
+}
+
 function applyMode(next: Mode): void {
   mode = next;
   saveProtocol({ mode, config: protocolConfig });
@@ -324,8 +352,7 @@ function applyMode(next: Mode): void {
   app.classList.toggle('is-protocol', mode === 'protocol');
   modeHint.textContent = MODE_HINTS[mode];
   drawLabel.textContent = mode === 'protocol' ? 'Run protocol' : 'Draw';
-  must('wordmark-main').textContent = mode === 'protocol' ? 'Tarnished' : 'The Column';
-  wordmarkSub.textContent = mode === 'protocol' ? 'run generator' : 'weighted randomizer';
+  syncWordmark();
   document.title = mode === 'protocol' ? 'Tarnished — run generator' : 'Column & Chamber';
 
   for (const block of document.querySelectorAll<HTMLElement>('[data-only]')) {
@@ -338,9 +365,9 @@ function applyMode(next: Mode): void {
   }
 
   if (mode === 'protocol') {
-    // The protocol is written for the strip: four pools read in sequence is
-    // not something the particle chamber can express.
-    if (store.get().settings.scene !== 'column') store.patchSettings({ scene: 'column' });
+    // The protocol is written for the field: four pools read in sequence, each
+    // one a grid you can watch change all at once.
+    if (store.get().settings.scene !== 'grid') store.patchSettings({ scene: 'grid' });
     swapScene(true);
     clearRun();
   } else {

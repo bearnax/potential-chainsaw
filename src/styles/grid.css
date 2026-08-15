@@ -1,0 +1,276 @@
+/* The Grid: every option as a box, the field readable at a glance. */
+
+.grid {
+  position: relative;
+  overflow: auto;
+}
+
+.board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 6px;
+  align-content: start;
+}
+
+.cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 62px;
+  padding: 8px 10px 7px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--hue) 26%, transparent);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--hue) 8%, transparent);
+  color: var(--ink-dim);
+  transition:
+    background 220ms var(--ease-out),
+    border-color 220ms var(--ease-out),
+    opacity 300ms var(--ease-out),
+    transform 220ms var(--ease-out);
+}
+
+/* The left rule is the only thing carrying the option's own hue at rest, so a
+   field of boxes still reads as a set of distinct things rather than a mesh. */
+.cell::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--hue);
+  opacity: 0.7;
+}
+
+.cell__name {
+  font-size: 12.5px;
+  line-height: 1.25;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.cell__detail {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell__foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* The odds, as a bar against the biggest option in the field. Height is no
+   longer available to carry probability, so this is where it lives. */
+.cell__meter {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--hue) 16%, transparent);
+  position: relative;
+  overflow: hidden;
+}
+
+.cell__meter::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--fill, 0) * 100%);
+  background: var(--hue);
+  opacity: 0.85;
+}
+
+.cell__pct {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+.cell__drop {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  opacity: 0;
+  transition:
+    opacity 120ms,
+    color 120ms;
+}
+
+.cell:hover .cell__drop,
+.cell__drop:focus-visible {
+  opacity: 1;
+}
+
+.cell__drop:hover {
+  color: var(--danger);
+}
+
+/* ---------- States of the walk ---------- */
+
+/* Still resolving out of noise. */
+.cell.is-noise .cell__name,
+.cell__name.is-decoding {
+  color: var(--accent-dim);
+}
+
+.cell.is-noise .cell__detail,
+.cell.is-noise .cell__pct {
+  opacity: 0.35;
+}
+
+/* The cursor is inside this box's stretch of the running total right now. */
+.cell.is-active {
+  background: color-mix(in srgb, var(--hue) 30%, transparent);
+  border-color: color-mix(in srgb, var(--hue) 70%, transparent);
+  transform: translateY(-1px);
+}
+
+/* The walk cleared this box: the point was not in it. */
+.cell.is-passed {
+  opacity: 0.26;
+  background: transparent;
+  border-color: var(--line);
+  transition-duration: 420ms;
+}
+
+/* Never examined — the walk stopped before reaching it. */
+.cell.is-dimmed {
+  opacity: 0.16;
+  background: transparent;
+  border-color: var(--line);
+}
+
+.cell.is-won {
+  opacity: 1;
+  background: color-mix(in srgb, var(--hue) 24%, transparent);
+  border-color: var(--hue);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--hue) 40%, transparent);
+}
+
+.cell.is-won .cell__name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.cell.is-won .cell__detail,
+.cell.is-won .cell__pct {
+  color: var(--ink-dim);
+}
+
+/* Won in an earlier round of this stage — out of the total, still on screen. */
+.cell.is-claimed {
+  opacity: 0.85;
+  background: color-mix(in srgb, var(--hue) 12%, transparent);
+}
+
+.cell.is-claimed .cell__pct {
+  font-size: 0;
+}
+
+.cell.is-claimed .cell__pct::before {
+  content: 'claimed';
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hue);
+}
+
+/* ---------- Grid layout on the stage ---------- */
+
+.stage.scene-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px 26px calc(clamp(28px, 6vh, 56px) + 74px);
+  align-items: stretch;
+}
+
+.stage.scene-grid > .stage__overlay,
+.stage.scene-grid > .grid,
+.stage.scene-grid > .brief,
+.stage.scene-grid > .dossier,
+.stage.scene-grid > .stage__status {
+  width: min(940px, 100%);
+  margin-inline: auto;
+}
+
+.stage.scene-grid .stage__canvas {
+  display: none;
+}
+
+.stage.scene-grid > .column {
+  display: none;
+}
+
+.stage.scene-grid .stage__overlay {
+  position: static;
+  display: block;
+  padding: 0;
+  min-height: 2.6em;
+}
+
+.stage.scene-grid .verdict {
+  max-width: none;
+  text-align: left;
+  font-size: clamp(1.4rem, 3vw, 2.3rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.stage.scene-grid .verdict__item {
+  text-shadow: none;
+}
+
+.stage.scene-grid .verdict--multi .verdict__item {
+  font-size: 0.72em;
+}
+
+.stage.scene-grid .grid {
+  flex: 1;
+  min-height: 120px;
+}
+
+.stage.scene-grid .stage__status {
+  position: static;
+  order: -1;
+}
+
+/* Other scenes keep the grid out of the way. */
+.stage.scene-column > .grid,
+.stage.scene-chamber > .grid {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .stage.scene-grid {
+    padding: 18px 16px calc(clamp(28px, 6vh, 56px) + 68px);
+  }
+
+  .board {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    transition-duration: 0.01ms !important;
+  }
+}

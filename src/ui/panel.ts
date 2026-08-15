@@ -24,6 +24,30 @@ import { buildShareUrl } from '../state/persist.ts';
 import { LIMITS, type AppState, type Scene } from '../types.ts';
 import { debounce, formatPercent, must, show } from './dom.ts';
 
+/**
+ * Copy for each scene. Exported because the wordmark is owned by `main.ts` —
+ * it has to weigh the scene's name against the current mode's, and the panel
+ * cannot see the mode.
+ */
+export const SCENE_COPY_BY_SCENE: Record<Scene, { name: string; hint: string; eliminate: string }> =
+  {
+    column: {
+      name: 'The Column',
+      hint: 'Every entry is a band as tall as its odds. Drawing throws one dart at the strip.',
+      eliminate: 'winners leave the strip',
+    },
+    grid: {
+      name: 'The Grid',
+      hint: 'Every entry is a box, its odds a meter. Drawing walks the field until it passes the point it drew.',
+      eliminate: 'winners leave the field',
+    },
+    chamber: {
+      name: 'Entropy Chamber',
+      hint: 'Particles in a containment field. Each entry owns a share of the light.',
+      eliminate: 'winners leave the chamber',
+    },
+  };
+
 export interface PanelHandlers {
   onEntriesChanged: () => void;
   onSceneChanged: () => void;
@@ -55,7 +79,6 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
   const paneFile = must('pane-file');
   const sceneHint = must('scene-hint');
   const eliminateNote = must('eliminate-note');
-  const wordmark = must('wordmark-main');
   const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-tab]')];
   const sceneButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-scene]')];
 
@@ -82,22 +105,14 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
 
   /* ---------------- scene ---------------- */
 
-  const SCENE_COPY: Record<Scene, { name: string; hint: string; eliminate: string }> = {
-    column: {
-      name: 'The Column',
-      hint: 'Every entry is a band as tall as its odds. Drawing throws one dart at the strip.',
-      eliminate: 'winners leave the strip',
-    },
-    chamber: {
-      name: 'Entropy Chamber',
-      hint: 'Particles in a containment field. Each entry owns a share of the light.',
-      eliminate: 'winners leave the chamber',
-    },
-  };
+  const SCENE_COPY = SCENE_COPY_BY_SCENE;
+
+  const SCENES = new Set<Scene>(['column', 'grid', 'chamber']);
 
   for (const button of sceneButtons) {
     button.addEventListener('click', () => {
-      const scene = button.dataset['scene'] === 'chamber' ? 'chamber' : 'column';
+      const named = button.dataset['scene'] as Scene | undefined;
+      const scene: Scene = named && SCENES.has(named) ? named : 'column';
       if (store.get().settings.scene === scene) return;
       store.patchSettings({ scene });
       handlers.onSceneChanged();
@@ -384,7 +399,6 @@ export function mountPanel(store: Store, handlers: PanelHandlers) {
     const active = activeEntries(state);
 
     const copy = SCENE_COPY[state.settings.scene];
-    wordmark.textContent = copy.name;
     sceneHint.textContent = copy.hint;
     eliminateNote.textContent = copy.eliminate;
     for (const button of sceneButtons) {

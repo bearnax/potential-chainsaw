@@ -2,12 +2,12 @@
  * Driving a protocol run.
  *
  * The sequencer owns the pacing and nothing else: it hands each stage's pool to
- * the strip, throws the dart the RNG already threw, waits long enough for a
+ * the scene, replays the point the RNG already drew, waits long enough for a
  * human to read the result, and moves on. No stage knows about any other.
  *
- * All four stages play out in the same strip. That is the point — the list is
- * where the computation happens, so a run is one continuous readout rather than
- * four separate screens.
+ * All four stages play out in the same field. That is the point — the options
+ * are where the computation happens, so a run is one continuous readout rather
+ * than four separate screens.
  */
 
 import { pickWeightedPoints } from '../draw/rng.ts';
@@ -61,7 +61,7 @@ export async function runProtocol(
     await beat(SETTLE_IN_MS);
     await stage.scan?.();
 
-    // The dart is thrown here, against this stage's pool and no other. Nothing
+    // The point is drawn here, against this stage's pool and no other. Nothing
     // downstream can move it.
     const picks = pickWeightedPoints(current.options, current.count);
     await stage.run(picks);

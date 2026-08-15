@@ -7,7 +7,7 @@ export interface Entry {
   readonly eliminated: boolean;
 }
 
-export type Scene = 'column' | 'chamber';
+export type Scene = 'column' | 'chamber' | 'grid';
 
 export interface Settings {
   scene: Scene;
