@@ -78,6 +78,12 @@
   display: none;
 }
 
+/* The protocol reveals by decay, not by a dart landing — the marker has
+   nothing to do here. */
+.app.is-protocol .marker {
+  display: none;
+}
+
 /* ---------- The stage brief ---------- */
 
 .brief {
@@ -163,6 +169,15 @@
 
 .app.is-protocol .band.is-won .band__name {
   font-size: 13.5px;
+}
+
+/* Algorithmic decay: the winning band's name while it is still resolving out
+   of noise. Unlocked characters flicker in the accent's dim register so the
+   locked ones read as more settled by contrast — the eye should be able to
+   tell "decided" from "still guessing" without reading a single word. */
+.band__name.is-decoding {
+  color: var(--accent-dim);
+  text-shadow: 0 0 8px var(--accent-glow);
 }
 
 /* The pass before the dart: every band lights in turn, top to bottom, so the

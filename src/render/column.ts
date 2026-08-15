@@ -46,6 +46,22 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(
 
 const easeOutQuart = (t: number): number => 1 - Math.pow(1 - t, 4);
 
+/** Glyphs a decoding name flickers through before a character locks in. */
+const SCRAMBLE_CHARS = 'X%#@!&*()[]:;<>+=~^?/\\';
+
+const scrambleChar = (): string =>
+  SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]!;
+
+/** Fisher-Yates, so which characters lock in first is different every time. */
+function shuffledIndices(n: number): number[] {
+  const order = Array.from({ length: n }, (_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j]!, order[i]!];
+  }
+  return order;
+}
+
 export interface ColumnHandlers {
   /** Remove an entry from the pool entirely. */
   onRemove?: (id: string) => void;
@@ -58,6 +74,15 @@ export interface ColumnOptions {
    * the protocol's CRT dressing needs.
    */
   palette?: 'spectrum' | 'phosphor';
+  /**
+   * `dart` is the marker running the strip and sticking where the point
+   * landed. `decay` is the terminal's own trick instead: the winning band's
+   * name resolves out of character noise, like a signal the machine is still
+   * cleaning up. The dart makes the arithmetic visible; the decay makes the
+   * machine look like it is still deciding, which is the tone the protocol
+   * wants and the list draw doesn't need.
+   */
+  revealStyle?: 'dart' | 'decay';
 }
 
 export class Column implements Visualizer {
@@ -67,11 +92,14 @@ export class Column implements Visualizer {
   private readonly events: VisualizerEvents;
   private readonly handlers: ColumnHandlers;
   private readonly palette: NonNullable<ColumnOptions['palette']>;
+  private readonly revealStyle: NonNullable<ColumnOptions['revealStyle']>;
 
   private items: PoolItem[] = [];
   private weights: number[] = [];
   private hues: Hue[] = [];
   private bands: HTMLElement[] = [];
+  /** Parallel to `bands` — the name span the decay reveal writes into. */
+  private nameEls: HTMLElement[] = [];
 
   private raf = 0;
   private staticMode = false;
@@ -88,6 +116,7 @@ export class Column implements Visualizer {
     this.events = events;
     this.handlers = handlers;
     this.palette = options.palette ?? 'spectrum';
+    this.revealStyle = options.revealStyle ?? 'dart';
 
     this.strip = document.createElement('div');
     this.strip.className = 'strip';
@@ -135,6 +164,7 @@ export class Column implements Visualizer {
 
     const total = weights.reduce((sum, w) => sum + w, 0);
 
+    this.nameEls = [];
     this.bands = items.map((item, i) => {
       const share = total > 0 ? weights[i]! / total : 1 / Math.max(1, items.length);
 
@@ -150,6 +180,7 @@ export class Column implements Visualizer {
       const name = document.createElement('span');
       name.className = 'band__name';
       name.textContent = item.label;
+      this.nameEls.push(name);
       // In a long list most bands are too short for a label. The name is still
       // reachable by pointer, and a winning band grows enough to show its own.
       band.title = item.detail
@@ -235,14 +266,26 @@ export class Column implements Visualizer {
 
     for (let round = 0; round < picks.length; round++) {
       const pick = picks[round]!;
-      const y = this.positionOf(pick, spent);
+      const band = this.bands[pick.index];
+      const duration = round === 0 ? FIRST_SWEEP_MS : NEXT_SWEEP_MS;
 
       if (round === 0) this.setPhase('collapse');
-      await this.sweepTo(y, round === 0 ? FIRST_SWEEP_MS : NEXT_SWEEP_MS);
 
-      const band = this.bands[pick.index];
+      if (this.revealStyle === 'decay') {
+        // The band claims itself before its name is legible — the box is
+        // already the answer, the noise inside it just hasn't cleared yet.
+        band?.classList.add('is-won');
+        const nameEl = this.nameEls[pick.index];
+        const label = this.items[pick.index]?.label;
+        if (nameEl && label) await this.decode(nameEl, label, duration);
+      } else {
+        const y = this.positionOf(pick, spent);
+        await this.sweepTo(y, duration);
+        band?.classList.add('is-won');
+        this.marker.classList.add('is-stuck');
+      }
+
       if (band) {
-        band.classList.add('is-won');
         spent.add(pick.index);
         if (round < picks.length - 1) {
           // Let the result stand before the strip rearranges under it —
@@ -257,7 +300,6 @@ export class Column implements Visualizer {
         this.setPhase('bloom');
         this.events.onReveal?.();
       }
-      this.marker.classList.add('is-stuck');
     }
 
     for (const [i, band] of this.bands.entries()) {
@@ -345,6 +387,45 @@ export class Column implements Visualizer {
           this.raf = requestAnimationFrame(tick);
         } else {
           this.marker.style.transform = `translateY(${target}px)`;
+          this.raf = 0;
+          resolve();
+        }
+      };
+      this.raf = requestAnimationFrame(tick);
+    });
+  }
+
+  /**
+   * The decay reveal: `target` starts as noise and characters lock in out of
+   * order until the name reads correctly. Nothing here decides anything — the
+   * winner was fixed before this was called, same as the dart — it just gives
+   * the terminal something to visibly finish computing.
+   */
+  private decode(el: HTMLElement, target: string, duration: number): Promise<void> {
+    if (this.staticMode || duration <= 0) {
+      el.textContent = target;
+      return Promise.resolve();
+    }
+
+    const order = shuffledIndices(target.length);
+    const start = performance.now();
+    el.classList.add('is-decoding');
+
+    return new Promise((resolve) => {
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const lockedCount = Math.floor(target.length * easeOutQuart(t));
+        const locked = new Set(order.slice(0, lockedCount));
+
+        el.textContent = Array.from(target)
+          .map((ch, i) => (ch === ' ' || locked.has(i) ? ch : scrambleChar()))
+          .join('');
+
+        if (t < 1) {
+          this.raf = requestAnimationFrame(tick);
+        } else {
+          el.textContent = target;
+          el.classList.remove('is-decoding');
           this.raf = 0;
           resolve();
         }
