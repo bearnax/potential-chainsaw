@@ -62,7 +62,23 @@ const USED_SCORES = new Map([
   ['', 5],
 ]);
 
-const rows = parseCsv(readFileSync(SOURCE, 'utf8'));
+async function loadCsv() {
+  const url = process.env.SHIELDS_CSV_URL;
+  if (url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      console.log(`Fetched shields data from ${url}`);
+      return await res.text();
+    } catch (err) {
+      console.warn(`Failed to fetch SHIELDS_CSV_URL: ${err.message}. Falling back to local.`);
+    }
+  }
+  return readFileSync(SOURCE, 'utf8');
+}
+
+const csvText = await loadCsv();
+const rows = parseCsv(csvText);
 const header = rows.shift().map((h) => h.trim());
 const col = (name) => header.indexOf(name);
 const iName = col('Name');
@@ -70,6 +86,7 @@ const iWeight = col('Weight');
 const iType = col('Shield Type');
 const iDlc = col('DLC?');
 const iUsed = col('Used');
+const iZone = col('earliest_zone');
 
 const shields = [];
 const unknownUsed = new Set();
@@ -91,12 +108,16 @@ for (const row of rows) {
   // actually tuned by hand.
   const raw = Number((row[iWeight] ?? '').trim());
   const weight = Number.isFinite(raw) && raw >= 0 && raw <= 5 ? raw : familiarity;
+  
+  const zoneRaw = iZone !== -1 ? Number((row[iZone] ?? '').trim()) : 1;
+  const zone = Number.isFinite(zoneRaw) && zoneRaw >= 1 && zoneRaw <= 9 ? zoneRaw : 1;
 
   shields.push({
     name,
     type,
     dlc: (row[iDlc] ?? '').includes('✅'),
     familiarity: weight,
+    earliest_zone: zone,
   });
 }
 
@@ -110,7 +131,7 @@ const str = (value) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const shieldLines = shields
   .map(
     (s) =>
-      `  { name: ${str(s.name)}, type: ${str(s.type)}, dlc: ${s.dlc}, familiarity: ${s.familiarity} },`,
+      `  { name: ${str(s.name)}, type: ${str(s.type)}, dlc: ${s.dlc}, familiarity: ${s.familiarity}, earliest_zone: ${s.earliest_zone} },`,
   )
   .join('\n');
 
@@ -132,6 +153,7 @@ export interface Shield {
   readonly type: string;
   readonly dlc: boolean;
   readonly familiarity: number;
+  readonly earliest_zone: number;
 }
 
 export const SHIELDS: readonly Shield[] = [

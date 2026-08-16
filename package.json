@@ -12,7 +12,7 @@
     "test": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "data": "node scripts/build-weapons.mjs"
+    "data": "node scripts/build-weapons.mjs && node scripts/build-shields.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

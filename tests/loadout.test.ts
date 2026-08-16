@@ -179,6 +179,18 @@ describe('progression', () => {
     expect(three!.allowed).toHaveLength(1);
   });
 
+  it('filters acts by earliest_zone gating', () => {
+    const prog = progressionFor('Katana', config());
+    const [one, two] = prog.acts;
+
+    for (const weapon of one!.allowed) {
+      expect(weapon.earliest_zone).toBeLessThanOrEqual(3);
+    }
+    for (const weapon of two!.allowed) {
+      expect(weapon.earliest_zone).toBeLessThanOrEqual(5);
+    }
+  });
+
   it('never lets a locked weapon into any act', () => {
     for (const type of ['Katana', 'Twinblade', 'Greatsword', 'Hammer']) {
       const prog = progressionFor(type, config());

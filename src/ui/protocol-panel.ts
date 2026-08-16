@@ -146,19 +146,22 @@ export function mountProtocolPanel(
 
   poolReadout.className = 'readout';
 
-  const exclusions = document.createElement('fieldset');
+  const exclusions = document.createElement('details');
   exclusions.className = 'exclude';
-  const legend = document.createElement('legend');
+  const legend = document.createElement('summary');
   legend.className = 'exclude__legend';
   legend.textContent = 'Keep out of the main hand';
   exclusions.append(legend);
+
+  const exclusionsBody = document.createElement('div');
+  exclusionsBody.className = 'exclude__body';
 
   for (const kind of ['ranged', 'catalyst', 'utility', 'melee'] as const) {
     const box = document.createElement('input');
     box.checked = config.excludedKinds.includes(kind);
     box.addEventListener('change', emit);
     kindInputs.set(kind, box);
-    exclusions.append(
+    exclusionsBody.append(
       check(
         box,
         KIND_LABELS[kind],
@@ -185,7 +188,8 @@ export function mountProtocolPanel(
     grid.append(check(box, type, `${freshnessOf(type, config).toFixed(1)}/5 unused`));
   }
   perType.append(grid);
-  exclusions.append(perType);
+  exclusionsBody.append(perType);
+  exclusions.append(exclusionsBody);
 
   host.replaceChildren(
     field('Weapon classes', countInput),

@@ -1,0 +1,1344 @@
+diff --git a/README.md b/README.md
+index 9c4532c..6976aa7 100644
+--- a/README.md
++++ b/README.md
+@@ -13,12 +13,13 @@ and the list of weapons it is not allowed to touch.
+ 
+ ## The protocol
+ 
+-Four stages, drawn in order across one field of boxes.
++Five stages, drawn in order across one field of boxes.
+ 
+ | Stage             | What it decides                                    | Where the weights come from          |
+ | ----------------- | -------------------------------------------------- | ------------------------------------ |
+ | Main armament     | N weapon classes (3 by default)                    | mean familiarity across the class    |
+ | Ranged sidearm    | one bow, crossbow, greatbow or ballista            | same, over the ranged classes        |
++| Shield loadout    | three shields for the run                          | shield familiarity                   |
+ | Arcane discipline | intelligence, faith, both, or neither              | the staff and seal rows of the sheet |
+ | Status vector     | bleed, rot, poison, frost, sleep, madness, or none | flat — see below                     |
+ 
+@@ -206,14 +207,17 @@ src/
+              palette.ts            one stable hue per entry
+              audio.ts              WebAudio synthesis
+   eldenring/ weapons.ts            the armoury, generated from the spreadsheet
++             shields.ts            the shield rack, generated from the spreadsheet
+              loadout.ts            classification, weighting, rulings, progression
+-             protocol.ts           the four stages and how a run assembles
++             protocol.ts           the five stages and how a run assembles
+              run.ts                the sequencer that paces a run
+   ui/        panel.ts, results.ts  controls and the stage's text layer
+              protocol-panel.ts     protocol config, built from the armoury
+              dossier.ts            the finished run sheet
+ scripts/     build-weapons.mjs     CSV -> weapons.ts
++             build-shields.mjs     CSV -> shields.ts
+              weapons-source.csv    the spreadsheet, the source of truth
++             shields-source.csv    the shield spreadsheet, the source of truth
+ tests/                             vitest, run headlessly in CI
+ ```
+ 
+@@ -240,6 +244,13 @@ a ramp of colour rather than a readable list. The distribution is still true and
+ the winning band grows enough to show its name, but if you routinely draw from
+ hundreds of entries, the Chamber or the panel's own list will serve you better.
+ 
++## Data Sources
++
++The Elden Ring domain data and logic in this project is derived from the work of others:
++- [Elden Ring Weapon Calculator](https://github.com/ThomasJClark/elden-ring-weapon-calculator) by Thomas Clark (MIT Licensed) – provided the underlying mathematical foundations for weapon statistics.
++- [WitchyBND](https://github.com/tremwil/WitchyBND) – the upstream tool used for data extraction.
++- The Kaggle Ultimate Dataset – utilized for bootstrapping location-based zone gating logic.
++
+ ## Deployment
+ 
+ Pushing to `main` builds and publishes to GitHub Pages via
+diff --git a/index.html b/index.html
+index 198808e..e29df3b 100644
+--- a/index.html
++++ b/index.html
+@@ -265,6 +265,12 @@
+             </div>
+             <p class="readout" id="share-readout" role="status" aria-live="polite"></p>
+           </section>
++
++          <footer class="block" style="margin-top: auto;">
++            <p class="hint">
++              Weapon data derived from game files using methods pioneered by <a href="https://github.com/ThomasJClark/elden-ring-weapon-calculator" target="_blank" rel="noopener" style="color: var(--ink-dim); text-decoration: underline;">Elden Ring Weapon Calculator</a> by Thomas Clark. Licensed under MIT.
++            </p>
++          </footer>
+         </div>
+       </aside>
+ 
+diff --git a/package.json b/package.json
+index fc3a5e8..e459fb4 100644
+--- a/package.json
++++ b/package.json
+@@ -12,7 +12,7 @@
+     "test": "vitest",
+     "format": "prettier --write .",
+     "format:check": "prettier --check .",
+-    "data": "node scripts/build-weapons.mjs"
++    "data": "node scripts/build-weapons.mjs && node scripts/build-shields.mjs"
+   },
+   "devDependencies": {
+     "@types/node": "^22.10.7",
+diff --git a/scripts/build-shields.mjs b/scripts/build-shields.mjs
+index da037dc..cd59f12 100644
+--- a/scripts/build-shields.mjs
++++ b/scripts/build-shields.mjs
+@@ -62,7 +62,23 @@ const USED_SCORES = new Map([
+   ['', 5],
+ ]);
+ 
+-const rows = parseCsv(readFileSync(SOURCE, 'utf8'));
++async function loadCsv() {
++  const url = process.env.SHIELDS_CSV_URL;
++  if (url) {
++    try {
++      const res = await fetch(url);
++      if (!res.ok) throw new Error(`HTTP ${res.status}`);
++      console.log(`Fetched shields data from ${url}`);
++      return await res.text();
++    } catch (err) {
++      console.warn(`Failed to fetch SHIELDS_CSV_URL: ${err.message}. Falling back to local.`);
++    }
++  }
++  return readFileSync(SOURCE, 'utf8');
++}
++
++const csvText = await loadCsv();
++const rows = parseCsv(csvText);
+ const header = rows.shift().map((h) => h.trim());
+ const col = (name) => header.indexOf(name);
+ const iName = col('Name');
+@@ -70,6 +86,7 @@ const iWeight = col('Weight');
+ const iType = col('Shield Type');
+ const iDlc = col('DLC?');
+ const iUsed = col('Used');
++const iZone = col('earliest_zone');
+ 
+ const shields = [];
+ const unknownUsed = new Set();
+@@ -91,12 +108,16 @@ for (const row of rows) {
+   // actually tuned by hand.
+   const raw = Number((row[iWeight] ?? '').trim());
+   const weight = Number.isFinite(raw) && raw >= 0 && raw <= 5 ? raw : familiarity;
++  
++  const zoneRaw = iZone !== -1 ? Number((row[iZone] ?? '').trim()) : 1;
++  const zone = Number.isFinite(zoneRaw) && zoneRaw >= 1 && zoneRaw <= 9 ? zoneRaw : 1;
+ 
+   shields.push({
+     name,
+     type,
+     dlc: (row[iDlc] ?? '').includes('✅'),
+     familiarity: weight,
++    earliest_zone: zone,
+   });
+ }
+ 
+@@ -110,7 +131,7 @@ const str = (value) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+ const shieldLines = shields
+   .map(
+     (s) =>
+-      `  { name: ${str(s.name)}, type: ${str(s.type)}, dlc: ${s.dlc}, familiarity: ${s.familiarity} },`,
++      `  { name: ${str(s.name)}, type: ${str(s.type)}, dlc: ${s.dlc}, familiarity: ${s.familiarity}, earliest_zone: ${s.earliest_zone} },`,
+   )
+   .join('\n');
+ 
+@@ -132,6 +153,7 @@ export interface Shield {
+   readonly type: string;
+   readonly dlc: boolean;
+   readonly familiarity: number;
++  readonly earliest_zone: number;
+ }
+ 
+ export const SHIELDS: readonly Shield[] = [
+diff --git a/scripts/build-weapons.mjs b/scripts/build-weapons.mjs
+index 94cc3df..458679c 100644
+--- a/scripts/build-weapons.mjs
++++ b/scripts/build-weapons.mjs
+@@ -59,10 +59,6 @@ const TYPE_FIXES = new Map([['Glinstone Staff', 'Glintstone Staff']]);
+ 
+ /**
+  * The sheet's "Used" column, as a 0-5 familiarity score.
+- *
+- * The Weight column already carries this, but it has gaps (#N/A on rows added
+- * after the last pass), so the prose column is the fallback rather than the
+- * other way round.
+  */
+ const USED_SCORES = new Map([
+   ['big time', 0],
+@@ -73,7 +69,23 @@ const USED_SCORES = new Map([
+   ['', 5],
+ ]);
+ 
+-const rows = parseCsv(readFileSync(SOURCE, 'utf8'));
++async function loadCsv() {
++  const url = process.env.WEAPONS_CSV_URL;
++  if (url) {
++    try {
++      const res = await fetch(url);
++      if (!res.ok) throw new Error(`HTTP ${res.status}`);
++      console.log(`Fetched weapons data from ${url}`);
++      return await res.text();
++    } catch (err) {
++      console.warn(`Failed to fetch WEAPONS_CSV_URL: ${err.message}. Falling back to local.`);
++    }
++  }
++  return readFileSync(SOURCE, 'utf8');
++}
++
++const csvText = await loadCsv();
++const rows = parseCsv(csvText);
+ const header = rows.shift().map((h) => h.trim());
+ const col = (name) => header.indexOf(name);
+ const iName = col('Name');
+@@ -81,6 +93,7 @@ const iWeight = col('Weight');
+ const iType = col('Weapon Type');
+ const iDlc = col('DLC?');
+ const iUsed = col('Used');
++const iZone = col('earliest_zone');
+ 
+ const weapons = [];
+ const unknownUsed = new Set();
+@@ -103,11 +116,15 @@ for (const row of rows) {
+   const raw = Number((row[iWeight] ?? '').trim());
+   const weight = Number.isFinite(raw) && raw >= 0 && raw <= 5 ? raw : familiarity;
+ 
++  const zoneRaw = iZone !== -1 ? Number((row[iZone] ?? '').trim()) : 1;
++  const zone = Number.isFinite(zoneRaw) && zoneRaw >= 1 && zoneRaw <= 9 ? zoneRaw : 1;
++
+   weapons.push({
+     name,
+     type: TYPE_FIXES.get(type) ?? type,
+     dlc: (row[iDlc] ?? '').includes('✅'),
+     familiarity: weight,
++    earliest_zone: zone,
+   });
+ }
+ 
+@@ -121,7 +138,7 @@ const str = (value) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+ const weaponLines = weapons
+   .map(
+     (w) =>
+-      `  { name: ${str(w.name)}, type: ${str(w.type)}, dlc: ${w.dlc}, familiarity: ${w.familiarity} },`,
++      `  { name: ${str(w.name)}, type: ${str(w.type)}, dlc: ${w.dlc}, familiarity: ${w.familiarity}, earliest_zone: ${w.earliest_zone} },`,
+   )
+   .join('\n');
+ 
+@@ -142,6 +159,7 @@ export interface Weapon {
+   readonly type: string;
+   readonly dlc: boolean;
+   readonly familiarity: number;
++  readonly earliest_zone: number;
+ }
+ 
+ export const WEAPONS: readonly Weapon[] = [
+diff --git a/src/eldenring/loadout.ts b/src/eldenring/loadout.ts
+index abe1e85..bbb327b 100644
+--- a/src/eldenring/loadout.ts
++++ b/src/eldenring/loadout.ts
+@@ -328,10 +328,9 @@ function ladder(members: readonly Weapon[]): Weapon[] {
+ /**
+  * Turn a drawn type into a three-act contract for a fresh playthrough.
+  *
+- * There is no acquisition-location data in the sheet and I am not going to
+- * invent any, so the acts are gated on commitment rather than on map progress:
+- * take what drops early, narrow to a shortlist by the midgame, and finish the
+- * run on one weapon you have never used.
++ * Acts are gated on both map progress (zone availability) and commitment:
++ * take what drops early (Zone <= 3), narrow to a midgame shortlist (Zone <= 5),
++ * and finish the run on the freshest weapon regardless of zone.
+  */
+ export function progressionFor(type: string, config: ProtocolConfig): Progression {
+   const members = membersOf(type, config);
+@@ -340,24 +339,27 @@ export function progressionFor(type: string, config: ProtocolConfig): Progressio
+   const open = rulings.filter((r) => r.standing === 'open').map((r) => r.weapon);
+   const restricted = rulings.filter((r) => r.standing === 'restricted').map((r) => r.weapon);
+ 
+-  // Everything worth ending on is at the top of the ladder; the shortlist is
+-  // small enough to be a real constraint but not so small it depends on one
+-  // drop showing up.
++  const act1Pool = [...open, ...restricted].filter((w) => w.earliest_zone <= 3);
++  
++  let shortlist = open.filter((w) => w.earliest_zone <= 5).slice(0, 3);
++  if (shortlist.length === 0) {
++    shortlist = open.slice(0, Math.min(3, open.length));
++  }
++
+   const finale = open.slice(0, 1);
+-  const shortlist = open.slice(0, Math.min(3, open.length));
+ 
+   const acts: Act[] = [
+     {
+       name: 'Act I',
+       window: 'Limgrave to Stormveil',
+-      allowed: [...open, ...restricted],
+-      rule: 'anything in the class that drops, including the well-used ones. Nothing is committed yet.',
++      allowed: act1Pool.length > 0 ? act1Pool : [...open, ...restricted].slice(0, 2),
++      rule: 'anything in the class available early, including well-used ones. Nothing committed yet.',
+     },
+     {
+       name: 'Act II',
+       window: 'Liurnia to the Capital',
+       allowed: shortlist,
+-      rule: 'drop the well-used weapons entirely and carry one of the shortlist. This is the build now.',
++      rule: 'drop the well-used weapons entirely and carry one of the midgame shortlist. This is the build now.',
+     },
+     {
+       name: 'Act III',
+diff --git a/src/eldenring/shields.ts b/src/eldenring/shields.ts
+index aab8365..43beb64 100644
+--- a/src/eldenring/shields.ts
++++ b/src/eldenring/shields.ts
+@@ -14,49 +14,54 @@ export interface Shield {
+   readonly type: string;
+   readonly dlc: boolean;
+   readonly familiarity: number;
++  readonly earliest_zone: number;
+ }
+ 
+ export const SHIELDS: readonly Shield[] = [
+-  { name: 'Blue Elephant Shield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Dragon Towershield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Dragonclaw Shield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Erdtree Greatshield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Fingerprint Negation Shield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Golden Greatshield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Haligtree Crest Greatshield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Icon Shield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Jellyfish Shield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Manor Towershield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'One-Eyed Shield', type: 'Greatshield', dlc: false, familiarity: 3 },
+-  { name: 'Verdigris Greatshield', type: 'Greatshield', dlc: true, familiarity: 3 },
+-  { name: 'Blue Crest Heater Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Brass Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: "Carian Knight's Shield", type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Dragon Crest Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Dueling Shield', type: 'Medium Shield', dlc: true, familiarity: 3 },
+-  { name: 'Fingerprint Stone Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Golden Beast Crest Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Golden Lion Shield', type: 'Medium Shield', dlc: true, familiarity: 3 },
+-  { name: 'Great Turtle Shell', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Kite Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Messmer Soldier Shield', type: 'Medium Shield', dlc: true, familiarity: 3 },
+-  { name: 'Red Thorn Roundshield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Round Shield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Silver Mirrorshield', type: 'Medium Shield', dlc: false, familiarity: 3 },
+-  { name: 'Blue-White Wooden Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Buckler', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Coil Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Gilded Iron Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Ice Crest Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Iron Roundshield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Leather Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: "Man-Serpent's Shield", type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Rickety Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Rift Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Riveted Wooden Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
+-  { name: 'Shield of Night', type: 'Small Shield', dlc: true, familiarity: 3 },
+-  { name: 'Twinbird Kite Shield', type: 'Small Shield', dlc: false, familiarity: 3 },
++  { name: 'Blue Elephant Shield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Dragon Towershield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Dragonclaw Shield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Erdtree Greatshield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Fingerprint Negation Shield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Golden Greatshield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Haligtree Crest Greatshield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Icon Shield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Jellyfish Shield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Manor Towershield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'One-Eyed Shield', type: 'Greatshield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Verdigris Greatshield', type: 'Greatshield', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Blue Crest Heater Shield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Brass Shield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Carian Knight\'s Shield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Dragon Crest Shield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Dueling Shield', type: 'Medium Shield', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Fingerprint Stone Shield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Golden Beast Crest Shield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Golden Lion Shield', type: 'Medium Shield', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Great Turtle Shell', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Kite Shield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Messmer Soldier Shield', type: 'Medium Shield', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Red Thorn Roundshield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Round Shield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Silver Mirrorshield', type: 'Medium Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Blue-White Wooden Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Buckler', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Coil Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Gilded Iron Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Ice Crest Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Iron Roundshield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Leather Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Man-Serpent\'s Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Rickety Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Rift Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Riveted Wooden Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Shield of Night', type: 'Small Shield', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Twinbird Kite Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
+ ];
+ 
+ /** Every distinct shield type in the sheet, alphabetically. */
+-export const SHIELD_TYPES: readonly string[] = ['Greatshield', 'Medium Shield', 'Small Shield'];
++export const SHIELD_TYPES: readonly string[] = [
++  'Greatshield',
++  'Medium Shield',
++  'Small Shield',
++];
+diff --git a/src/eldenring/weapons.ts b/src/eldenring/weapons.ts
+index 6656bc5..2016e5e 100644
+--- a/src/eldenring/weapons.ts
++++ b/src/eldenring/weapons.ts
+@@ -13,411 +13,412 @@ export interface Weapon {
+   readonly type: string;
+   readonly dlc: boolean;
+   readonly familiarity: number;
++  readonly earliest_zone: number;
+ }
+ 
+ export const WEAPONS: readonly Weapon[] = [
+-  { name: 'Battle Axe', type: 'Axe', dlc: false, familiarity: 3 },
+-  { name: "Celebrant's Cleaver", type: 'Axe', dlc: false, familiarity: 5 },
+-  { name: "Death Knight's Twin Axes", type: 'Axe', dlc: true, familiarity: 5 },
+-  { name: 'Forked Hatchet', type: 'Axe', dlc: false, familiarity: 5 },
+-  { name: 'Forked-Tongue Hatchet', type: 'Axe', dlc: true, familiarity: 5 },
+-  { name: 'Hand Axe', type: 'Axe', dlc: false, familiarity: 5 },
+-  { name: 'Highland Axe', type: 'Axe', dlc: false, familiarity: 2 },
+-  { name: 'Icerind Hatchet', type: 'Axe', dlc: false, familiarity: 3 },
+-  { name: 'Iron Cleaver', type: 'Axe', dlc: false, familiarity: 2 },
+-  { name: 'Jawbone Axe', type: 'Axe', dlc: false, familiarity: 5 },
+-  { name: "Messmer Soldier's Axe", type: 'Axe', dlc: true, familiarity: 5 },
+-  { name: 'Ripple Blade', type: 'Axe', dlc: false, familiarity: 5 },
+-  { name: "Rosus' Axe", type: 'Axe', dlc: false, familiarity: 5 },
+-  { name: 'Sacrificial Axe', type: 'Axe', dlc: false, familiarity: 5 },
+-  { name: 'Smithscript Axe', type: 'Axe', dlc: true, familiarity: 5 },
+-  { name: 'Stormhawk Axe', type: 'Axe', dlc: false, familiarity: 3 },
+-  { name: 'Warped Axe', type: 'Axe', dlc: false, familiarity: 2 },
+-  { name: 'Backhand Blade', type: 'Backhand Blade', dlc: true, familiarity: 5 },
+-  { name: "Curseblade's Cirque", type: 'Backhand Blade', dlc: true, familiarity: 5 },
+-  { name: 'Smithscript Cirque', type: 'Backhand Blade', dlc: true, familiarity: 5 },
+-  { name: 'Hand Ballista', type: 'Ballista', dlc: false, familiarity: 5 },
+-  { name: 'Jar Cannon', type: 'Ballista', dlc: false, familiarity: 5 },
+-  { name: "Rabbath's Cannon", type: 'Ballista', dlc: true, familiarity: 5 },
+-  { name: 'Beast Claw', type: 'Beast Claw', dlc: true, familiarity: 5 },
+-  { name: 'Claws of Night', type: 'Beast Claw', dlc: true, familiarity: 5 },
+-  { name: "Red Bear's Claw", type: 'Beast Claw', dlc: true, familiarity: 5 },
+-  { name: 'Albinauric Bow', type: 'Bow', dlc: false, familiarity: 5 },
+-  { name: "Ansbach's Longbow", type: 'Bow', dlc: true, familiarity: 5 },
+-  { name: 'Black Bow', type: 'Bow', dlc: false, familiarity: 2 },
+-  { name: 'Erdtree Bow', type: 'Bow', dlc: false, familiarity: 2 },
+-  { name: 'Horn Bow', type: 'Bow', dlc: false, familiarity: 5 },
+-  { name: 'Longbow', type: 'Bow', dlc: false, familiarity: 5 },
+-  { name: 'Pulley Bow', type: 'Bow', dlc: false, familiarity: 5 },
+-  { name: 'Serpent Bow', type: 'Bow', dlc: false, familiarity: 5 },
+-  { name: 'Bloodhound Claws', type: 'Claw', dlc: false, familiarity: 5 },
+-  { name: 'Hookclaws', type: 'Claw', dlc: false, familiarity: 5 },
+-  { name: 'Raptor Talons', type: 'Claw', dlc: false, familiarity: 5 },
+-  { name: 'Venomous Fang', type: 'Claw', dlc: false, familiarity: 5 },
+-  { name: 'Ancient Meteoric Ore Greatsword', type: 'Colossal Sword', dlc: true, familiarity: 3 },
+-  { name: "Fire Knight's Greatsword", type: 'Colossal Sword', dlc: true, familiarity: 0 },
+-  { name: "Godslayer's Greatsword", type: 'Colossal Sword', dlc: false, familiarity: 0 },
+-  { name: 'Grafted Blade Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 0 },
+-  { name: 'Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 0 },
+-  { name: 'Greatsword of Radahn (Light)', type: 'Colossal Sword', dlc: true, familiarity: 5 },
+-  { name: 'Greatsword of Radahn (Lord)', type: 'Colossal Sword', dlc: true, familiarity: 5 },
+-  { name: "Maliketh's Black Blade", type: 'Colossal Sword', dlc: false, familiarity: 1 },
+-  { name: "Moonrithyll's Knight Sword", type: 'Colossal Sword', dlc: true, familiarity: 5 },
+-  { name: 'Royal Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 2 },
+-  { name: 'Ruins Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 0 },
+-  { name: 'Starscourge Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 5 },
+-  { name: "Troll Knight's Sword", type: 'Colossal Sword', dlc: false, familiarity: 3 },
+-  { name: "Troll's Golden Sword", type: 'Colossal Sword', dlc: false, familiarity: 5 },
+-  { name: "Watchdog's Greatsword", type: 'Colossal Sword', dlc: false, familiarity: 3 },
+-  { name: 'Zweihander', type: 'Colossal Sword', dlc: false, familiarity: 5 },
+-  { name: 'Anvil Hammer', type: 'Colossal Weapon', dlc: true, familiarity: 5 },
+-  { name: 'Axe of Godfrey', type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: "Bloodfiend's Arm", type: 'Colossal Weapon', dlc: true, familiarity: 5 },
+-  { name: "Devonia's Hammer", type: 'Colossal Weapon', dlc: true, familiarity: 5 },
+-  { name: 'Dragon Greatclaw', type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Duelist Greataxe', type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: "Envoy's Greathorn", type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Fallingstar Beast Jaw', type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Gazing Finger', type: 'Colossal Weapon', dlc: true, familiarity: 5 },
+-  { name: "Ghiza's Wheel", type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Giant-Crusher', type: 'Colossal Weapon', dlc: false, familiarity: 0 },
+-  { name: "Golem's Halberd", type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Great Club', type: 'Colossal Weapon', dlc: false, familiarity: 0 },
+-  { name: "Prelate's Inferno Crozier", type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Rotten Greataxe', type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Rotten Staff', type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Shadow Sunflower Blossom', type: 'Colossal Weapon', dlc: true, familiarity: 5 },
+-  { name: 'Staff of the Avatar', type: 'Colossal Weapon', dlc: false, familiarity: 2 },
+-  { name: "Troll's Hammer", type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: "Watchdog's Staff", type: 'Colossal Weapon', dlc: false, familiarity: 5 },
+-  { name: 'Arbalest', type: 'Crossbow', dlc: false, familiarity: 5 },
+-  { name: "Crepus's Black-Key Crossbow", type: 'Crossbow', dlc: false, familiarity: 5 },
+-  { name: 'Full Moon Crossbow', type: 'Crossbow', dlc: false, familiarity: 5 },
+-  { name: 'Heavy Crossbow', type: 'Crossbow', dlc: false, familiarity: 5 },
+-  { name: 'Light Crossbow', type: 'Crossbow', dlc: false, familiarity: 5 },
+-  { name: 'Pulley Crossbow', type: 'Crossbow', dlc: false, familiarity: 5 },
+-  { name: 'Repeating Crossbow', type: 'Crossbow', dlc: true, familiarity: 5 },
+-  { name: "Soldier's Crossbow", type: 'Crossbow', dlc: false, familiarity: 5 },
+-  { name: 'Spread Crossbow', type: 'Crossbow', dlc: true, familiarity: 5 },
+-  { name: "Beastman's Cleaver", type: 'Curved Greatsword', dlc: false, familiarity: 5 },
+-  { name: "Bloodhound's Fang", type: 'Curved Greatsword', dlc: false, familiarity: 0 },
+-  { name: 'Dismounter', type: 'Curved Greatsword', dlc: false, familiarity: 1 },
+-  { name: "Horned Warrior's Greatsword", type: 'Curved Greatsword', dlc: true, familiarity: 5 },
+-  { name: "Magma Wyrm's Scalesword", type: 'Curved Greatsword', dlc: false, familiarity: 2 },
+-  { name: "Monk's Flameblade", type: 'Curved Greatsword', dlc: false, familiarity: 1 },
+-  { name: "Morgott's Cursed Sword", type: 'Curved Greatsword', dlc: false, familiarity: 2 },
+-  { name: 'Omen Cleaver', type: 'Curved Greatsword', dlc: false, familiarity: 3 },
+-  { name: "Onyx Lord's Greatsword", type: 'Curved Greatsword', dlc: false, familiarity: 5 },
+-  { name: 'Zamor Curved Sword', type: 'Curved Greatsword', dlc: false, familiarity: 5 },
+-  { name: "Bandit's Curved Sword", type: 'Curved Sword', dlc: false, familiarity: 0 },
+-  { name: "Beastman's Curved Sword", type: 'Curved Sword', dlc: false, familiarity: 5 },
+-  { name: 'Dancing Blade of Ranah', type: 'Curved Sword', dlc: true, familiarity: 5 },
+-  { name: 'Eclipse Shotel', type: 'Curved Sword', dlc: false, familiarity: 5 },
+-  { name: 'Falchion', type: 'Curved Sword', dlc: false, familiarity: 3 },
+-  { name: 'Falx', type: 'Curved Sword', dlc: true, familiarity: 5 },
+-  { name: 'Flowing Curved Sword', type: 'Curved Sword', dlc: false, familiarity: 2 },
+-  { name: 'Grossmesser', type: 'Curved Sword', dlc: false, familiarity: 3 },
+-  { name: "Horned Warrior's Sword", type: 'Curved Sword', dlc: true, familiarity: 5 },
+-  { name: 'Magma Blade', type: 'Curved Sword', dlc: false, familiarity: 5 },
+-  { name: 'Mantis Blade', type: 'Curved Sword', dlc: false, familiarity: 5 },
+-  { name: 'Nox Flowing Sword', type: 'Curved Sword', dlc: false, familiarity: 3 },
+-  { name: "Scavenger's Curved Sword", type: 'Curved Sword', dlc: false, familiarity: 1 },
+-  { name: 'Scimitar', type: 'Curved Sword', dlc: false, familiarity: 2 },
+-  { name: "Serpent-God's Curved Sword", type: 'Curved Sword', dlc: false, familiarity: 5 },
+-  { name: 'Shamshir', type: 'Curved Sword', dlc: false, familiarity: 5 },
+-  { name: 'Shotel', type: 'Curved Sword', dlc: false, familiarity: 5 },
+-  { name: 'Spirit Sword', type: 'Curved Sword', dlc: true, familiarity: 5 },
+-  { name: 'Wing of Astel', type: 'Curved Sword', dlc: false, familiarity: 0 },
+-  { name: 'Black Knife', type: 'Dagger', dlc: false, familiarity: 3 },
+-  { name: 'Blade of Calling', type: 'Dagger', dlc: false, familiarity: 3 },
+-  { name: 'Bloodstained Dagger', type: 'Dagger', dlc: false, familiarity: 5 },
+-  { name: "Celebrant's Sickle", type: 'Dagger', dlc: false, familiarity: 5 },
+-  { name: 'Cinquedea', type: 'Dagger', dlc: false, familiarity: 2 },
+-  { name: 'Crystal Knife', type: 'Dagger', dlc: false, familiarity: 5 },
+-  { name: 'Dagger', type: 'Dagger', dlc: false, familiarity: 5 },
+-  { name: 'Erdsteel Dagger', type: 'Dagger', dlc: false, familiarity: 2 },
+-  { name: 'Glintstone Kris', type: 'Dagger', dlc: false, familiarity: 3 },
+-  { name: 'Great Knife', type: 'Dagger', dlc: false, familiarity: 5 },
+-  { name: 'Ivory Sickle', type: 'Dagger', dlc: false, familiarity: 5 },
+-  { name: 'Main-gauche', type: 'Dagger', dlc: true, familiarity: 5 },
+-  { name: 'Misericorde', type: 'Dagger', dlc: false, familiarity: 3 },
+-  { name: 'Parrying Dagger', type: 'Dagger', dlc: false, familiarity: 5 },
+-  { name: 'Reduvia', type: 'Dagger', dlc: false, familiarity: 0 },
+-  { name: "Scorpion's Stinger", type: 'Dagger', dlc: false, familiarity: 5 },
+-  { name: 'Wakizashi', type: 'Dagger', dlc: false, familiarity: 2 },
+-  { name: 'Caestus', type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: 'Cipher Pata', type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: 'Clinging Bone', type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: 'Golem Fist', type: 'Fist', dlc: true, familiarity: 5 },
+-  { name: 'Grafted Dragon', type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: 'Iron Ball', type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: 'Katar', type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: 'Madding Hand', type: 'Fist', dlc: true, familiarity: 5 },
+-  { name: 'Pata', type: 'Fist', dlc: true, familiarity: 5 },
+-  { name: 'Poisoned Hand', type: 'Fist', dlc: true, familiarity: 5 },
+-  { name: 'Spiked Caestus', type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: 'Star Fist', type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: "Thiollier's Hidden Needle", type: 'Fist', dlc: true, familiarity: 5 },
+-  { name: "Veteran's Prosthesis", type: 'Fist', dlc: false, familiarity: 5 },
+-  { name: "Bastard's Stars", type: 'Flail', dlc: false, familiarity: 0 },
+-  { name: 'Chainlink Flail', type: 'Flail', dlc: false, familiarity: 1 },
+-  { name: 'Family Heads', type: 'Flail', dlc: false, familiarity: 2 },
+-  { name: 'Flail', type: 'Flail', dlc: false, familiarity: 0 },
+-  { name: 'Nightrider Flail', type: 'Flail', dlc: false, familiarity: 1 },
+-  { name: 'Serpent Flail', type: 'Flail', dlc: true, familiarity: 2 },
+-  { name: 'Academy Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 0 },
+-  { name: 'Albinauric Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5 },
+-  { name: "Astrologer's Staff", type: 'Glintstone Staff', dlc: false, familiarity: 1 },
+-  { name: "Azur's Glintstone Staff", type: 'Glintstone Staff', dlc: false, familiarity: 0 },
+-  { name: 'Carian Glintblade Staff', type: 'Glintstone Staff', dlc: false, familiarity: 2 },
+-  { name: 'Carian Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 2 },
+-  { name: 'Carian Regal Scepter', type: 'Glintstone Staff', dlc: false, familiarity: 2 },
+-  { name: 'Crystal Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5 },
+-  { name: "Demi-Human Queen's Staff", type: 'Glintstone Staff', dlc: false, familiarity: 5 },
+-  { name: "Digger's Staff", type: 'Glintstone Staff', dlc: false, familiarity: 5 },
+-  { name: 'Gelmir Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5 },
+-  { name: 'Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 3 },
+-  { name: "Lusat's Glintstone Staff", type: 'Glintstone Staff', dlc: false, familiarity: 0 },
+-  { name: 'Maternal Staff', type: 'Glintstone Staff', dlc: true, familiarity: 5 },
+-  { name: 'Meteorite Staff', type: 'Glintstone Staff', dlc: false, familiarity: 0 },
+-  { name: "Prince of Death's Staff", type: 'Glintstone Staff', dlc: false, familiarity: 2 },
+-  { name: 'Rotten Crystal Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5 },
+-  { name: 'Staff of Loss', type: 'Glintstone Staff', dlc: false, familiarity: 0 },
+-  { name: 'Staff of the Great Beyond', type: 'Glintstone Staff', dlc: true, familiarity: 2 },
+-  { name: 'Staff of the Guilty', type: 'Glintstone Staff', dlc: false, familiarity: 5 },
+-  { name: 'Black Steel Greathammer', type: 'Great Hammer', dlc: true, familiarity: 5 },
+-  { name: 'Smithscript Greathammer', type: 'Great Hammer', dlc: true, familiarity: 5 },
+-  { name: "Dragon-Hunter's Great Katana", type: 'Great Katana', dlc: true, familiarity: 1 },
+-  { name: 'Great Katana', type: 'Great Katana', dlc: true, familiarity: 0 },
+-  { name: "Rakshasa's Great Katana", type: 'Great Katana', dlc: true, familiarity: 3 },
+-  { name: 'Barbed Staff-Spear', type: 'Great Spear', dlc: true, familiarity: 5 },
+-  { name: "Bloodfiend's Sacred Spear", type: 'Great Spear', dlc: true, familiarity: 5 },
+-  { name: 'Lance', type: 'Great Spear', dlc: false, familiarity: 5 },
+-  { name: "Messmer Soldier's Spear", type: 'Great Spear', dlc: true, familiarity: 5 },
+-  { name: "Mohgwyn's Sacred Spear", type: 'Great Spear', dlc: false, familiarity: 2 },
+-  { name: 'Serpent-Hunter', type: 'Great Spear', dlc: false, familiarity: 1 },
+-  { name: "Siluria's Tree", type: 'Great Spear', dlc: false, familiarity: 3 },
+-  { name: 'Spear of the Impaler', type: 'Great Spear', dlc: true, familiarity: 5 },
+-  { name: 'Treespear', type: 'Great Spear', dlc: false, familiarity: 1 },
+-  { name: "Vyke's War Spear", type: 'Great Spear', dlc: false, familiarity: 0 },
+-  { name: 'Axe of Godrick', type: 'Greataxe', dlc: false, familiarity: 5 },
+-  { name: 'Bonny Butchering Knife', type: 'Greataxe', dlc: true, familiarity: 5 },
+-  { name: 'Butchering Knife', type: 'Greataxe', dlc: false, familiarity: 5 },
+-  { name: 'Crescent Moon Axe', type: 'Greataxe', dlc: false, familiarity: 5 },
+-  { name: "Death Knight's Longhaft Axe", type: 'Greataxe', dlc: true, familiarity: 5 },
+-  { name: "Executioner's Greataxe", type: 'Greataxe', dlc: false, familiarity: 1 },
+-  { name: "Gargoyle's Black Axe", type: 'Greataxe', dlc: false, familiarity: 3 },
+-  { name: "Gargoyle's Great Axe", type: 'Greataxe', dlc: false, familiarity: 5 },
+-  { name: 'Great Omenkiller Cleaver', type: 'Greataxe', dlc: false, familiarity: 5 },
+-  { name: 'Greataxe', type: 'Greataxe', dlc: false, familiarity: 3 },
+-  { name: 'Longhaft Axe', type: 'Greataxe', dlc: false, familiarity: 5 },
+-  { name: 'Putrescence Cleaver', type: 'Greataxe', dlc: true, familiarity: 5 },
+-  { name: 'Rusted Anchor', type: 'Greataxe', dlc: false, familiarity: 3 },
+-  { name: 'Winged Greathorn', type: 'Greataxe', dlc: false, familiarity: 5 },
+-  { name: 'Erdtree Greatbow', type: 'Greatbow', dlc: false, familiarity: 2 },
+-  { name: 'Golem Greatbow', type: 'Greatbow', dlc: false, familiarity: 5 },
+-  { name: 'Greatbow', type: 'Greatbow', dlc: false, familiarity: 5 },
+-  { name: "Igon's Greatbow", type: 'Greatbow', dlc: true, familiarity: 5 },
+-  { name: 'Lion Greatbow', type: 'Greatbow', dlc: false, familiarity: 5 },
+-  { name: "Alabaster Lord's Sword", type: 'Greatsword', dlc: true, familiarity: 5 },
+-  { name: "Banished Knight's Greatsword", type: 'Greatsword', dlc: false, familiarity: 5 },
+-  { name: 'Bastard Sword', type: 'Greatsword', dlc: false, familiarity: 2 },
+-  { name: 'Blasphemous Blade', type: 'Greatsword', dlc: false, familiarity: 0 },
+-  { name: 'Claymore', type: 'Greatsword', dlc: false, familiarity: 0 },
+-  { name: 'Dark Moon Greatsword', type: 'Greatsword', dlc: false, familiarity: 0 },
+-  { name: "Death's Poker", type: 'Greatsword', dlc: false, familiarity: 1 },
+-  { name: 'Flamberge', type: 'Greatsword', dlc: false, familiarity: 1 },
+-  { name: 'Forked Greatsword', type: 'Greatsword', dlc: false, familiarity: 5 },
+-  { name: "Freyja's Greatsword", type: 'Greatsword', dlc: true, familiarity: 5 },
+-  { name: "Gargoyle's Blackblade", type: 'Greatsword', dlc: false, familiarity: 3 },
+-  { name: "Gargoyle's Greatsword", type: 'Greatsword', dlc: false, familiarity: 3 },
+-  { name: 'Golden Order Greatsword', type: 'Greatsword', dlc: false, familiarity: 5 },
+-  { name: 'Greatsword of Damnation', type: 'Greatsword', dlc: true, familiarity: 5 },
+-  { name: 'Greatsword of Solitude', type: 'Greatsword', dlc: true, familiarity: 5 },
+-  { name: "Helphen's Steeple", type: 'Greatsword', dlc: false, familiarity: 5 },
+-  { name: 'Inseparable Sword', type: 'Greatsword', dlc: false, familiarity: 5 },
+-  { name: 'Iron Greatsword', type: 'Greatsword', dlc: false, familiarity: 1 },
+-  { name: "Knight's Greatsword", type: 'Greatsword', dlc: false, familiarity: 2 },
+-  { name: 'Lizard Greatsword', type: 'Greatsword', dlc: true, familiarity: 5 },
+-  { name: "Lordsworn's Greatsword", type: 'Greatsword', dlc: false, familiarity: 2 },
+-  { name: "Marais Executioner's Sword", type: 'Greatsword', dlc: false, familiarity: 0 },
+-  { name: "Ordovis's Greatsword", type: 'Greatsword', dlc: false, familiarity: 2 },
+-  { name: "Queelign's Greatsword", type: 'Greatsword', dlc: true, familiarity: 0 },
+-  { name: 'Sacred Relic Sword', type: 'Greatsword', dlc: false, familiarity: 0 },
+-  { name: 'Sword of Milos', type: 'Greatsword', dlc: false, familiarity: 5 },
+-  { name: "Banished Knight's Halberd", type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: "Commander's Standard", type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: 'Dragon Halberd', type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: "Gargoyle's Black Halberd", type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: "Gargoyle's Halberd", type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: 'Glaive', type: 'Halberd', dlc: false, familiarity: 2 },
+-  { name: 'Golden Halberd', type: 'Halberd', dlc: false, familiarity: 3 },
+-  { name: "Guardian's Swordspear", type: 'Halberd', dlc: false, familiarity: 1 },
+-  { name: 'Halberd', type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: "Loretta's War Sickle", type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: 'Lucerne', type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: 'Nightrider Glaive', type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: "Pest's Glaive", type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: 'Poleblade of the Bud', type: 'Halberd', dlc: true, familiarity: 5 },
+-  { name: 'Ripple Crescent Halberd', type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: 'Spirit Glaive', type: 'Halberd', dlc: true, familiarity: 5 },
+-  { name: 'Vulgar Militia Saw', type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: 'Vulgar Militia Shotel', type: 'Halberd', dlc: false, familiarity: 5 },
+-  { name: 'Club', type: 'Hammer', dlc: false, familiarity: 0 },
+-  { name: 'Curved Club', type: 'Hammer', dlc: false, familiarity: 3 },
+-  { name: "Envoy's Horn", type: 'Hammer', dlc: false, familiarity: 5 },
+-  { name: 'Flowerstone Gavel', type: 'Hammer', dlc: true, familiarity: 5 },
+-  { name: 'Hammer', type: 'Hammer', dlc: false, familiarity: 1 },
+-  { name: 'Mace', type: 'Hammer', dlc: false, familiarity: 1 },
+-  { name: "Marika's Hammer", type: 'Hammer', dlc: false, familiarity: 2 },
+-  { name: "Monk's Flamemace", type: 'Hammer', dlc: false, familiarity: 0 },
+-  { name: 'Morning Star', type: 'Hammer', dlc: false, familiarity: 0 },
+-  { name: 'Nox Flowing Hammer', type: 'Hammer', dlc: false, familiarity: 2 },
+-  { name: 'Ringed Finger', type: 'Hammer', dlc: false, familiarity: 5 },
+-  { name: 'Scepter of the All-Knowing', type: 'Hammer', dlc: false, familiarity: 5 },
+-  { name: 'Spiked Club', type: 'Hammer', dlc: false, familiarity: 0 },
+-  { name: 'Stone Club', type: 'Hammer', dlc: false, familiarity: 0 },
+-  { name: "Varre's Bouquet", type: 'Hammer', dlc: false, familiarity: 5 },
+-  { name: 'Warpick', type: 'Hammer', dlc: false, familiarity: 3 },
+-  { name: "Dane's Footwork", type: 'Hand-to-Hand Art', dlc: true, familiarity: 5 },
+-  { name: 'Dryleaf Arts', type: 'Hand-to-Hand Art', dlc: true, familiarity: 5 },
+-  { name: 'Bloody Helice', type: 'Heavy Thrusting Sword', dlc: false, familiarity: 2 },
+-  { name: "Dragon King's Cragblade", type: 'Heavy Thrusting Sword', dlc: false, familiarity: 5 },
+-  { name: 'Godskin Stitcher', type: 'Heavy Thrusting Sword', dlc: false, familiarity: 0 },
+-  { name: 'Great Epee', type: 'Heavy Thrusting Sword', dlc: false, familiarity: 1 },
+-  { name: 'Sword Lance', type: 'Heavy Thrusting Sword', dlc: true, familiarity: 5 },
+-  { name: 'Dragonscale Blade', type: 'Katana', dlc: false, familiarity: 5 },
+-  { name: 'Hand of Malenia', type: 'Katana', dlc: false, familiarity: 5 },
+-  { name: 'Meteoric Ore Blade', type: 'Katana', dlc: false, familiarity: 1 },
+-  { name: 'Moonveil', type: 'Katana', dlc: false, familiarity: 1 },
+-  { name: 'Nagakiba', type: 'Katana', dlc: false, familiarity: 0 },
+-  { name: 'Rivers of Blood', type: 'Katana', dlc: false, familiarity: 0 },
+-  { name: 'Serpentbone Blade', type: 'Katana', dlc: false, familiarity: 5 },
+-  { name: 'Star-Lined Sword', type: 'Katana', dlc: true, familiarity: 3 },
+-  { name: 'Sword of Night', type: 'Katana', dlc: true, familiarity: 5 },
+-  { name: 'Uchigatana', type: 'Katana', dlc: false, familiarity: 0 },
+-  { name: 'Bone Bow', type: 'Light Bow', dlc: true, familiarity: 2 },
+-  { name: 'Composite Bow', type: 'Light Bow', dlc: false, familiarity: 2 },
+-  { name: 'Harp Bow', type: 'Light Bow', dlc: false, familiarity: 5 },
+-  { name: 'Misbegotten Shortbow', type: 'Light Bow', dlc: false, familiarity: 5 },
+-  { name: 'Red Branch Shortbow', type: 'Light Bow', dlc: false, familiarity: 5 },
+-  { name: 'Shortbow', type: 'Light Bow', dlc: false, familiarity: 5 },
+-  { name: "Leda's Sword", type: 'Light Greatsword', dlc: true, familiarity: 5 },
+-  { name: 'Milady', type: 'Light Greatsword', dlc: true, familiarity: 0 },
+-  { name: "Rellana's Twin Blades", type: 'Light Greatsword', dlc: true, familiarity: 3 },
+-  { name: 'Chilling Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5 },
+-  { name: 'Deadly Poison Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5 },
+-  { name: 'Firespark Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5 },
+-  { name: 'Frenzyflame Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5 },
+-  { name: 'Lightning Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5 },
+-  { name: 'Grave Scythe', type: 'Reaper', dlc: false, familiarity: 2 },
+-  { name: 'Halo Scythe', type: 'Reaper', dlc: false, familiarity: 1 },
+-  { name: 'Obsidian Lamina', type: 'Reaper', dlc: true, familiarity: 5 },
+-  { name: 'Scythe', type: 'Reaper', dlc: false, familiarity: 3 },
+-  { name: 'Winged Scythe', type: 'Reaper', dlc: false, familiarity: 2 },
+-  { name: 'Clawmark Seal', type: 'Sacred Seal', dlc: false, familiarity: 1 },
+-  { name: 'Dragon Communion Seal', type: 'Sacred Seal', dlc: false, familiarity: 0 },
+-  { name: 'Dryleaf Seal', type: 'Sacred Seal', dlc: true, familiarity: 5 },
+-  { name: 'Erdtree Seal', type: 'Sacred Seal', dlc: false, familiarity: 2 },
+-  { name: 'Finger Seal', type: 'Sacred Seal', dlc: false, familiarity: 1 },
+-  { name: "Fire Knight's Seal", type: 'Sacred Seal', dlc: true, familiarity: 5 },
+-  { name: 'Frenzied Flame Seal', type: 'Sacred Seal', dlc: false, familiarity: 0 },
+-  { name: "Giant's Seal", type: 'Sacred Seal', dlc: false, familiarity: 2 },
+-  { name: "Godslayer's Seal", type: 'Sacred Seal', dlc: false, familiarity: 0 },
+-  { name: 'Golden Order Seal', type: 'Sacred Seal', dlc: false, familiarity: 5 },
+-  { name: 'Gravel Stone Seal', type: 'Sacred Seal', dlc: false, familiarity: 3 },
+-  { name: 'Spiraltree Seal', type: 'Sacred Seal', dlc: true, familiarity: 5 },
+-  { name: "Bloodfiend's Fork", type: 'Spear', dlc: true, familiarity: 5 },
+-  { name: 'Bolt of Gransax', type: 'Spear', dlc: false, familiarity: 1 },
+-  { name: "Celebrant's Rib-Rake", type: 'Spear', dlc: false, familiarity: 5 },
+-  { name: "Clayman's Harpoon", type: 'Spear', dlc: false, familiarity: 2 },
+-  { name: 'Cleanrot Spear', type: 'Spear', dlc: false, familiarity: 5 },
+-  { name: 'Cross-Naginata', type: 'Spear', dlc: false, familiarity: 0 },
+-  { name: 'Crystal Spear', type: 'Spear', dlc: false, familiarity: 5 },
+-  { name: 'Death Ritual Spear', type: 'Spear', dlc: false, familiarity: 2 },
+-  { name: "Inquisitor's Girandole", type: 'Spear', dlc: false, familiarity: 5 },
+-  { name: 'Iron Spear', type: 'Spear', dlc: false, familiarity: 3 },
+-  { name: 'Partisan', type: 'Spear', dlc: false, familiarity: 2 },
+-  { name: 'Pike', type: 'Spear', dlc: false, familiarity: 2 },
+-  { name: 'Rotten Crystal Spear', type: 'Spear', dlc: false, familiarity: 5 },
+-  { name: 'Short Spear', type: 'Spear', dlc: false, familiarity: 3 },
+-  { name: 'Smithscript Spear', type: 'Spear', dlc: true, familiarity: 5 },
+-  { name: 'Spear', type: 'Spear', dlc: false, familiarity: 2 },
+-  { name: 'Spiked Spear', type: 'Spear', dlc: false, familiarity: 1 },
+-  { name: 'Swift Spear', type: 'Spear', dlc: true, familiarity: 5 },
+-  { name: 'Torchpole', type: 'Spear', dlc: false, familiarity: 5 },
+-  { name: 'Broadsword', type: 'Straight Sword', dlc: false, familiarity: 2 },
+-  { name: 'Cane Sword', type: 'Straight Sword', dlc: false, familiarity: 5 },
+-  { name: "Carian Knight's Sword", type: 'Straight Sword', dlc: false, familiarity: 2 },
+-  { name: 'Coded Sword', type: 'Straight Sword', dlc: false, familiarity: 5 },
+-  { name: 'Crystal Sword', type: 'Straight Sword', dlc: false, familiarity: 5 },
+-  { name: "Fire Knight's Shortsword", type: 'Straight Sword', dlc: true, familiarity: 5 },
+-  { name: 'Golden Epitaph', type: 'Straight Sword', dlc: false, familiarity: 3 },
+-  { name: 'Lazuli Glintstone Sword', type: 'Straight Sword', dlc: false, familiarity: 3 },
+-  { name: 'Longsword', type: 'Straight Sword', dlc: false, familiarity: 2 },
+-  { name: "Lordsworn's Straight Sword", type: 'Straight Sword', dlc: false, familiarity: 2 },
+-  { name: "Miquellan Knight's Sword", type: 'Straight Sword', dlc: false, familiarity: 2 },
+-  { name: "Noble's Slender Sword", type: 'Straight Sword', dlc: false, familiarity: 1 },
+-  { name: 'Ornamental Straight Sword', type: 'Straight Sword', dlc: false, familiarity: 1 },
+-  { name: 'Regalia of Eochaid', type: 'Straight Sword', dlc: false, familiarity: 1 },
+-  { name: 'Rotten Crystal Sword', type: 'Straight Sword', dlc: false, familiarity: 5 },
+-  { name: 'Short Sword', type: 'Straight Sword', dlc: false, familiarity: 2 },
+-  { name: 'Stone-Sheathed Sword', type: 'Straight Sword', dlc: true, familiarity: 5 },
+-  { name: 'Sword of Darkness', type: 'Straight Sword', dlc: true, familiarity: 5 },
+-  { name: 'Sword of Light', type: 'Straight Sword', dlc: true, familiarity: 5 },
+-  { name: 'Sword of Night and Flame', type: 'Straight Sword', dlc: false, familiarity: 0 },
+-  { name: 'Sword of St. Trina', type: 'Straight Sword', dlc: false, familiarity: 5 },
+-  { name: 'Velvet Sword of St. Trina', type: 'Straight Sword', dlc: true, familiarity: 5 },
+-  { name: "Warhawk's Talon", type: 'Straight Sword', dlc: false, familiarity: 5 },
+-  { name: 'Weathered Straight Sword', type: 'Straight Sword', dlc: false, familiarity: 5 },
+-  { name: 'Smithscript Dagger', type: 'Throwing Blade', dlc: true, familiarity: 5 },
+-  { name: 'Carian Thrusting Shield', type: 'Thrusting Shield', dlc: true, familiarity: 5 },
+-  { name: 'Dueling Shield', type: 'Thrusting Shield', dlc: true, familiarity: 5 },
+-  { name: 'Antspur Rapier', type: 'Thrusting Sword', dlc: false, familiarity: 1 },
+-  { name: 'Carian Sorcery Sword', type: 'Thrusting Sword', dlc: true, familiarity: 5 },
+-  { name: "Cleanrot Knight's Sword", type: 'Thrusting Sword', dlc: false, familiarity: 3 },
+-  { name: 'Estoc', type: 'Thrusting Sword', dlc: false, familiarity: 0 },
+-  { name: 'Frozen Needle', type: 'Thrusting Sword', dlc: false, familiarity: 5 },
+-  { name: "Noble's Estoc", type: 'Thrusting Sword', dlc: false, familiarity: 1 },
+-  { name: 'Rapier', type: 'Thrusting Sword', dlc: false, familiarity: 0 },
+-  { name: "Rogier's Rapier", type: 'Thrusting Sword', dlc: false, familiarity: 0 },
+-  { name: 'Beast-Repellent Torch', type: 'Torch', dlc: false, familiarity: 2 },
+-  { name: 'Ghostflame Torch', type: 'Torch', dlc: false, familiarity: 5 },
+-  { name: 'Lamenting Visage', type: 'Torch', dlc: true, familiarity: 5 },
+-  { name: "Nanaya's Torch", type: 'Torch', dlc: true, familiarity: 5 },
+-  { name: "Sentry's Torch", type: 'Torch', dlc: false, familiarity: 5 },
+-  { name: "St. Trina's Torch", type: 'Torch', dlc: false, familiarity: 5 },
+-  { name: 'Steel-Wire Torch', type: 'Torch', dlc: false, familiarity: 5 },
+-  { name: 'Torch', type: 'Torch', dlc: false, familiarity: 5 },
+-  { name: 'Black Steel Twinblade', type: 'Twinblade', dlc: true, familiarity: 5 },
+-  { name: "Eleonora's Poleblade", type: 'Twinblade', dlc: false, familiarity: 0 },
+-  { name: 'Euporia', type: 'Twinblade', dlc: true, familiarity: 5 },
+-  { name: "Gargoyle's Black Blades", type: 'Twinblade', dlc: false, familiarity: 0 },
+-  { name: "Gargoyle's Twinblade", type: 'Twinblade', dlc: false, familiarity: 0 },
+-  { name: 'Godskin Peeler', type: 'Twinblade', dlc: false, familiarity: 0 },
+-  { name: 'Twinblade', type: 'Twinblade', dlc: false, familiarity: 0 },
+-  { name: 'Twinned Knight Swords', type: 'Twinblade', dlc: false, familiarity: 0 },
+-  { name: 'Battle Hammer', type: 'Warhammer', dlc: false, familiarity: 5 },
+-  { name: 'Beastclaw Greathammer', type: 'Warhammer', dlc: false, familiarity: 0 },
+-  { name: 'Brick Hammer', type: 'Warhammer', dlc: false, familiarity: 2 },
+-  { name: "Celebrant's Skull", type: 'Warhammer', dlc: false, familiarity: 5 },
+-  { name: 'Cranial Vessel Candlestand', type: 'Warhammer', dlc: false, familiarity: 5 },
+-  { name: 'Curved Great Club', type: 'Warhammer', dlc: false, familiarity: 3 },
+-  { name: "Devourer's Scepter", type: 'Warhammer', dlc: false, familiarity: 3 },
+-  { name: "Envoy's Long Horn", type: 'Warhammer', dlc: false, familiarity: 5 },
+-  { name: 'Great Mace', type: 'Warhammer', dlc: false, familiarity: 3 },
+-  { name: 'Great Stars', type: 'Warhammer', dlc: false, familiarity: 1 },
+-  { name: 'Greathorn Hammer', type: 'Warhammer', dlc: false, familiarity: 5 },
+-  { name: 'Large Club', type: 'Warhammer', dlc: false, familiarity: 5 },
+-  { name: 'Pickaxe', type: 'Warhammer', dlc: false, familiarity: 2 },
+-  { name: 'Rotten Battle Hammer', type: 'Warhammer', dlc: false, familiarity: 5 },
+-  { name: "Giant's Red Braid", type: 'Whip', dlc: false, familiarity: 5 },
+-  { name: "Hoslow's Petal Whip", type: 'Whip', dlc: false, familiarity: 5 },
+-  { name: 'Magma Whip Candlestick', type: 'Whip', dlc: false, familiarity: 5 },
+-  { name: 'Thorned Whip', type: 'Whip', dlc: false, familiarity: 5 },
+-  { name: 'Tooth Whip', type: 'Whip', dlc: true, familiarity: 5 },
+-  { name: 'Urumi', type: 'Whip', dlc: false, familiarity: 5 },
+-  { name: 'Whip', type: 'Whip', dlc: false, familiarity: 5 },
++  { name: 'Battle Axe', type: 'Axe', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Celebrant\'s Cleaver', type: 'Axe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Death Knight\'s Twin Axes', type: 'Axe', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Forked Hatchet', type: 'Axe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Forked-Tongue Hatchet', type: 'Axe', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Hand Axe', type: 'Axe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Highland Axe', type: 'Axe', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Icerind Hatchet', type: 'Axe', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Iron Cleaver', type: 'Axe', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Jawbone Axe', type: 'Axe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Messmer Soldier\'s Axe', type: 'Axe', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Ripple Blade', type: 'Axe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Rosus\' Axe', type: 'Axe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Sacrificial Axe', type: 'Axe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Smithscript Axe', type: 'Axe', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Stormhawk Axe', type: 'Axe', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Warped Axe', type: 'Axe', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Backhand Blade', type: 'Backhand Blade', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Curseblade\'s Cirque', type: 'Backhand Blade', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Smithscript Cirque', type: 'Backhand Blade', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Hand Ballista', type: 'Ballista', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Jar Cannon', type: 'Ballista', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Rabbath\'s Cannon', type: 'Ballista', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Beast Claw', type: 'Beast Claw', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Claws of Night', type: 'Beast Claw', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Red Bear\'s Claw', type: 'Beast Claw', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Albinauric Bow', type: 'Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Ansbach\'s Longbow', type: 'Bow', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Black Bow', type: 'Bow', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Erdtree Bow', type: 'Bow', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Horn Bow', type: 'Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Longbow', type: 'Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Pulley Bow', type: 'Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Serpent Bow', type: 'Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bloodhound Claws', type: 'Claw', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Hookclaws', type: 'Claw', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Raptor Talons', type: 'Claw', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Venomous Fang', type: 'Claw', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Ancient Meteoric Ore Greatsword', type: 'Colossal Sword', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Fire Knight\'s Greatsword', type: 'Colossal Sword', dlc: true, familiarity: 0, earliest_zone: 1 },
++  { name: 'Godslayer\'s Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Grafted Blade Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Greatsword of Radahn (Light)', type: 'Colossal Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Greatsword of Radahn (Lord)', type: 'Colossal Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Maliketh\'s Black Blade', type: 'Colossal Sword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Moonrithyll\'s Knight Sword', type: 'Colossal Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Royal Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Ruins Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Starscourge Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Troll Knight\'s Sword', type: 'Colossal Sword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Troll\'s Golden Sword', type: 'Colossal Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Watchdog\'s Greatsword', type: 'Colossal Sword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Zweihander', type: 'Colossal Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Anvil Hammer', type: 'Colossal Weapon', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Axe of Godfrey', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bloodfiend\'s Arm', type: 'Colossal Weapon', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Devonia\'s Hammer', type: 'Colossal Weapon', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Dragon Greatclaw', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Duelist Greataxe', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Envoy\'s Greathorn', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Fallingstar Beast Jaw', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Gazing Finger', type: 'Colossal Weapon', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Ghiza\'s Wheel', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Giant-Crusher', type: 'Colossal Weapon', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Golem\'s Halberd', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Great Club', type: 'Colossal Weapon', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Prelate\'s Inferno Crozier', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Rotten Greataxe', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Rotten Staff', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Shadow Sunflower Blossom', type: 'Colossal Weapon', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Staff of the Avatar', type: 'Colossal Weapon', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Troll\'s Hammer', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Watchdog\'s Staff', type: 'Colossal Weapon', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Arbalest', type: 'Crossbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Crepus\'s Black-Key Crossbow', type: 'Crossbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Full Moon Crossbow', type: 'Crossbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Heavy Crossbow', type: 'Crossbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Light Crossbow', type: 'Crossbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Pulley Crossbow', type: 'Crossbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Repeating Crossbow', type: 'Crossbow', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Soldier\'s Crossbow', type: 'Crossbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Spread Crossbow', type: 'Crossbow', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Beastman\'s Cleaver', type: 'Curved Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bloodhound\'s Fang', type: 'Curved Greatsword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Dismounter', type: 'Curved Greatsword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Horned Warrior\'s Greatsword', type: 'Curved Greatsword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Magma Wyrm\'s Scalesword', type: 'Curved Greatsword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Monk\'s Flameblade', type: 'Curved Greatsword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Morgott\'s Cursed Sword', type: 'Curved Greatsword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Omen Cleaver', type: 'Curved Greatsword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Onyx Lord\'s Greatsword', type: 'Curved Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Zamor Curved Sword', type: 'Curved Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bandit\'s Curved Sword', type: 'Curved Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Beastman\'s Curved Sword', type: 'Curved Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Dancing Blade of Ranah', type: 'Curved Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Eclipse Shotel', type: 'Curved Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Falchion', type: 'Curved Sword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Falx', type: 'Curved Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Flowing Curved Sword', type: 'Curved Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Grossmesser', type: 'Curved Sword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Horned Warrior\'s Sword', type: 'Curved Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Magma Blade', type: 'Curved Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Mantis Blade', type: 'Curved Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Nox Flowing Sword', type: 'Curved Sword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Scavenger\'s Curved Sword', type: 'Curved Sword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Scimitar', type: 'Curved Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Serpent-God\'s Curved Sword', type: 'Curved Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Shamshir', type: 'Curved Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Shotel', type: 'Curved Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Spirit Sword', type: 'Curved Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Wing of Astel', type: 'Curved Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Black Knife', type: 'Dagger', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Blade of Calling', type: 'Dagger', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Bloodstained Dagger', type: 'Dagger', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Celebrant\'s Sickle', type: 'Dagger', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Cinquedea', type: 'Dagger', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Crystal Knife', type: 'Dagger', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Dagger', type: 'Dagger', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Erdsteel Dagger', type: 'Dagger', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Glintstone Kris', type: 'Dagger', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Great Knife', type: 'Dagger', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Ivory Sickle', type: 'Dagger', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Main-gauche', type: 'Dagger', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Misericorde', type: 'Dagger', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Parrying Dagger', type: 'Dagger', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Reduvia', type: 'Dagger', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Scorpion\'s Stinger', type: 'Dagger', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Wakizashi', type: 'Dagger', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Caestus', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Cipher Pata', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Clinging Bone', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Golem Fist', type: 'Fist', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Grafted Dragon', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Iron Ball', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Katar', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Madding Hand', type: 'Fist', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Pata', type: 'Fist', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Poisoned Hand', type: 'Fist', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Spiked Caestus', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Star Fist', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Thiollier\'s Hidden Needle', type: 'Fist', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Veteran\'s Prosthesis', type: 'Fist', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bastard\'s Stars', type: 'Flail', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Chainlink Flail', type: 'Flail', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Family Heads', type: 'Flail', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Flail', type: 'Flail', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Nightrider Flail', type: 'Flail', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Serpent Flail', type: 'Flail', dlc: true, familiarity: 2, earliest_zone: 1 },
++  { name: 'Academy Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Albinauric Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Astrologer\'s Staff', type: 'Glintstone Staff', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Azur\'s Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Carian Glintblade Staff', type: 'Glintstone Staff', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Carian Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Carian Regal Scepter', type: 'Glintstone Staff', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Crystal Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Demi-Human Queen\'s Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Digger\'s Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Gelmir Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Lusat\'s Glintstone Staff', type: 'Glintstone Staff', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Maternal Staff', type: 'Glintstone Staff', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Meteorite Staff', type: 'Glintstone Staff', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Prince of Death\'s Staff', type: 'Glintstone Staff', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Rotten Crystal Staff', type: 'Glintstone Staff', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Staff of Loss', type: 'Glintstone Staff', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Staff of the Great Beyond', type: 'Glintstone Staff', dlc: true, familiarity: 2, earliest_zone: 1 },
++  { name: 'Staff of the Guilty', type: 'Glintstone Staff', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Black Steel Greathammer', type: 'Great Hammer', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Smithscript Greathammer', type: 'Great Hammer', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Dragon-Hunter\'s Great Katana', type: 'Great Katana', dlc: true, familiarity: 1, earliest_zone: 1 },
++  { name: 'Great Katana', type: 'Great Katana', dlc: true, familiarity: 0, earliest_zone: 1 },
++  { name: 'Rakshasa\'s Great Katana', type: 'Great Katana', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Barbed Staff-Spear', type: 'Great Spear', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bloodfiend\'s Sacred Spear', type: 'Great Spear', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Lance', type: 'Great Spear', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Messmer Soldier\'s Spear', type: 'Great Spear', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Mohgwyn\'s Sacred Spear', type: 'Great Spear', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Serpent-Hunter', type: 'Great Spear', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Siluria\'s Tree', type: 'Great Spear', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Spear of the Impaler', type: 'Great Spear', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Treespear', type: 'Great Spear', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Vyke\'s War Spear', type: 'Great Spear', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Axe of Godrick', type: 'Greataxe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bonny Butchering Knife', type: 'Greataxe', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Butchering Knife', type: 'Greataxe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Crescent Moon Axe', type: 'Greataxe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Death Knight\'s Longhaft Axe', type: 'Greataxe', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Executioner\'s Greataxe', type: 'Greataxe', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Gargoyle\'s Black Axe', type: 'Greataxe', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Gargoyle\'s Great Axe', type: 'Greataxe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Great Omenkiller Cleaver', type: 'Greataxe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Greataxe', type: 'Greataxe', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Longhaft Axe', type: 'Greataxe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Putrescence Cleaver', type: 'Greataxe', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Rusted Anchor', type: 'Greataxe', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Winged Greathorn', type: 'Greataxe', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Erdtree Greatbow', type: 'Greatbow', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Golem Greatbow', type: 'Greatbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Greatbow', type: 'Greatbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Igon\'s Greatbow', type: 'Greatbow', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Lion Greatbow', type: 'Greatbow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Alabaster Lord\'s Sword', type: 'Greatsword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Banished Knight\'s Greatsword', type: 'Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bastard Sword', type: 'Greatsword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Blasphemous Blade', type: 'Greatsword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Claymore', type: 'Greatsword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Dark Moon Greatsword', type: 'Greatsword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Death\'s Poker', type: 'Greatsword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Flamberge', type: 'Greatsword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Forked Greatsword', type: 'Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Freyja\'s Greatsword', type: 'Greatsword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Gargoyle\'s Blackblade', type: 'Greatsword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Gargoyle\'s Greatsword', type: 'Greatsword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Golden Order Greatsword', type: 'Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Greatsword of Damnation', type: 'Greatsword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Greatsword of Solitude', type: 'Greatsword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Helphen\'s Steeple', type: 'Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Inseparable Sword', type: 'Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Iron Greatsword', type: 'Greatsword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Knight\'s Greatsword', type: 'Greatsword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Lizard Greatsword', type: 'Greatsword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Lordsworn\'s Greatsword', type: 'Greatsword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Marais Executioner\'s Sword', type: 'Greatsword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Ordovis\'s Greatsword', type: 'Greatsword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Queelign\'s Greatsword', type: 'Greatsword', dlc: true, familiarity: 0, earliest_zone: 1 },
++  { name: 'Sacred Relic Sword', type: 'Greatsword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Sword of Milos', type: 'Greatsword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Banished Knight\'s Halberd', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Commander\'s Standard', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Dragon Halberd', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Gargoyle\'s Black Halberd', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Gargoyle\'s Halberd', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Glaive', type: 'Halberd', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Golden Halberd', type: 'Halberd', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Guardian\'s Swordspear', type: 'Halberd', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Halberd', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Loretta\'s War Sickle', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Lucerne', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Nightrider Glaive', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Pest\'s Glaive', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Poleblade of the Bud', type: 'Halberd', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Ripple Crescent Halberd', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Spirit Glaive', type: 'Halberd', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Vulgar Militia Saw', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Vulgar Militia Shotel', type: 'Halberd', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Club', type: 'Hammer', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Curved Club', type: 'Hammer', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Envoy\'s Horn', type: 'Hammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Flowerstone Gavel', type: 'Hammer', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Hammer', type: 'Hammer', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Mace', type: 'Hammer', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Marika\'s Hammer', type: 'Hammer', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Monk\'s Flamemace', type: 'Hammer', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Morning Star', type: 'Hammer', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Nox Flowing Hammer', type: 'Hammer', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Ringed Finger', type: 'Hammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Scepter of the All-Knowing', type: 'Hammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Spiked Club', type: 'Hammer', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Stone Club', type: 'Hammer', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Varre\'s Bouquet', type: 'Hammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Warpick', type: 'Hammer', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Dane\'s Footwork', type: 'Hand-to-Hand Art', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Dryleaf Arts', type: 'Hand-to-Hand Art', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bloody Helice', type: 'Heavy Thrusting Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Dragon King\'s Cragblade', type: 'Heavy Thrusting Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Godskin Stitcher', type: 'Heavy Thrusting Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Great Epee', type: 'Heavy Thrusting Sword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Sword Lance', type: 'Heavy Thrusting Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Dragonscale Blade', type: 'Katana', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Hand of Malenia', type: 'Katana', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Meteoric Ore Blade', type: 'Katana', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Moonveil', type: 'Katana', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Nagakiba', type: 'Katana', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Rivers of Blood', type: 'Katana', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Serpentbone Blade', type: 'Katana', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Star-Lined Sword', type: 'Katana', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Sword of Night', type: 'Katana', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Uchigatana', type: 'Katana', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Bone Bow', type: 'Light Bow', dlc: true, familiarity: 2, earliest_zone: 1 },
++  { name: 'Composite Bow', type: 'Light Bow', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Harp Bow', type: 'Light Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Misbegotten Shortbow', type: 'Light Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Red Branch Shortbow', type: 'Light Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Shortbow', type: 'Light Bow', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Leda\'s Sword', type: 'Light Greatsword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Milady', type: 'Light Greatsword', dlc: true, familiarity: 0, earliest_zone: 1 },
++  { name: 'Rellana\'s Twin Blades', type: 'Light Greatsword', dlc: true, familiarity: 3, earliest_zone: 1 },
++  { name: 'Chilling Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Deadly Poison Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Firespark Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Frenzyflame Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Lightning Perfume Bottle', type: 'Perfume Bottle', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Grave Scythe', type: 'Reaper', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Halo Scythe', type: 'Reaper', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Obsidian Lamina', type: 'Reaper', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Scythe', type: 'Reaper', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Winged Scythe', type: 'Reaper', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Clawmark Seal', type: 'Sacred Seal', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Dragon Communion Seal', type: 'Sacred Seal', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Dryleaf Seal', type: 'Sacred Seal', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Erdtree Seal', type: 'Sacred Seal', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Finger Seal', type: 'Sacred Seal', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Fire Knight\'s Seal', type: 'Sacred Seal', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Frenzied Flame Seal', type: 'Sacred Seal', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Giant\'s Seal', type: 'Sacred Seal', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Godslayer\'s Seal', type: 'Sacred Seal', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Golden Order Seal', type: 'Sacred Seal', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Gravel Stone Seal', type: 'Sacred Seal', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Spiraltree Seal', type: 'Sacred Seal', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bloodfiend\'s Fork', type: 'Spear', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Bolt of Gransax', type: 'Spear', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Celebrant\'s Rib-Rake', type: 'Spear', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Clayman\'s Harpoon', type: 'Spear', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Cleanrot Spear', type: 'Spear', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Cross-Naginata', type: 'Spear', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Crystal Spear', type: 'Spear', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Death Ritual Spear', type: 'Spear', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Inquisitor\'s Girandole', type: 'Spear', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Iron Spear', type: 'Spear', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Partisan', type: 'Spear', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Pike', type: 'Spear', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Rotten Crystal Spear', type: 'Spear', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Short Spear', type: 'Spear', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Smithscript Spear', type: 'Spear', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Spear', type: 'Spear', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Spiked Spear', type: 'Spear', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Swift Spear', type: 'Spear', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Torchpole', type: 'Spear', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Broadsword', type: 'Straight Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Cane Sword', type: 'Straight Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Carian Knight\'s Sword', type: 'Straight Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Coded Sword', type: 'Straight Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Crystal Sword', type: 'Straight Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Fire Knight\'s Shortsword', type: 'Straight Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Golden Epitaph', type: 'Straight Sword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Lazuli Glintstone Sword', type: 'Straight Sword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Longsword', type: 'Straight Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Lordsworn\'s Straight Sword', type: 'Straight Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Miquellan Knight\'s Sword', type: 'Straight Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Noble\'s Slender Sword', type: 'Straight Sword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Ornamental Straight Sword', type: 'Straight Sword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Regalia of Eochaid', type: 'Straight Sword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Rotten Crystal Sword', type: 'Straight Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Short Sword', type: 'Straight Sword', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Stone-Sheathed Sword', type: 'Straight Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Sword of Darkness', type: 'Straight Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Sword of Light', type: 'Straight Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Sword of Night and Flame', type: 'Straight Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Sword of St. Trina', type: 'Straight Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Velvet Sword of St. Trina', type: 'Straight Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Warhawk\'s Talon', type: 'Straight Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Weathered Straight Sword', type: 'Straight Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Smithscript Dagger', type: 'Throwing Blade', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Carian Thrusting Shield', type: 'Thrusting Shield', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Dueling Shield', type: 'Thrusting Shield', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Antspur Rapier', type: 'Thrusting Sword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Carian Sorcery Sword', type: 'Thrusting Sword', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Cleanrot Knight\'s Sword', type: 'Thrusting Sword', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Estoc', type: 'Thrusting Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Frozen Needle', type: 'Thrusting Sword', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Noble\'s Estoc', type: 'Thrusting Sword', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Rapier', type: 'Thrusting Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Rogier\'s Rapier', type: 'Thrusting Sword', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Beast-Repellent Torch', type: 'Torch', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Ghostflame Torch', type: 'Torch', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Lamenting Visage', type: 'Torch', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Nanaya\'s Torch', type: 'Torch', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Sentry\'s Torch', type: 'Torch', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'St. Trina\'s Torch', type: 'Torch', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Steel-Wire Torch', type: 'Torch', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Torch', type: 'Torch', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Black Steel Twinblade', type: 'Twinblade', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Eleonora\'s Poleblade', type: 'Twinblade', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Euporia', type: 'Twinblade', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Gargoyle\'s Black Blades', type: 'Twinblade', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Gargoyle\'s Twinblade', type: 'Twinblade', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Godskin Peeler', type: 'Twinblade', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Twinblade', type: 'Twinblade', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Twinned Knight Swords', type: 'Twinblade', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Battle Hammer', type: 'Warhammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Beastclaw Greathammer', type: 'Warhammer', dlc: false, familiarity: 0, earliest_zone: 1 },
++  { name: 'Brick Hammer', type: 'Warhammer', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Celebrant\'s Skull', type: 'Warhammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Cranial Vessel Candlestand', type: 'Warhammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Curved Great Club', type: 'Warhammer', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Devourer\'s Scepter', type: 'Warhammer', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Envoy\'s Long Horn', type: 'Warhammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Great Mace', type: 'Warhammer', dlc: false, familiarity: 3, earliest_zone: 1 },
++  { name: 'Great Stars', type: 'Warhammer', dlc: false, familiarity: 1, earliest_zone: 1 },
++  { name: 'Greathorn Hammer', type: 'Warhammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Large Club', type: 'Warhammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Pickaxe', type: 'Warhammer', dlc: false, familiarity: 2, earliest_zone: 1 },
++  { name: 'Rotten Battle Hammer', type: 'Warhammer', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Giant\'s Red Braid', type: 'Whip', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Hoslow\'s Petal Whip', type: 'Whip', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Magma Whip Candlestick', type: 'Whip', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Thorned Whip', type: 'Whip', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Tooth Whip', type: 'Whip', dlc: true, familiarity: 5, earliest_zone: 1 },
++  { name: 'Urumi', type: 'Whip', dlc: false, familiarity: 5, earliest_zone: 1 },
++  { name: 'Whip', type: 'Whip', dlc: false, familiarity: 5, earliest_zone: 1 },
+ ];
+ 
+ /** Every distinct weapon type in the sheet, alphabetically. */
+diff --git a/src/styles/grid.css b/src/styles/grid.css
+index 9bf75d8..d55da38 100644
+--- a/src/styles/grid.css
++++ b/src/styles/grid.css
+@@ -290,3 +290,11 @@
+     transition-duration: 0.01ms !important;
+   }
+ }
++
++@media (max-width: 860px) {
++  .board { gap: 10px; }
++  .cell {
++    min-height: 84px;
++    padding: 12px 14px 11px;
++  }
++}
+diff --git a/src/styles/nostromo.css b/src/styles/nostromo.css
+index 0f6461e..3f07344 100644
+--- a/src/styles/nostromo.css
++++ b/src/styles/nostromo.css
+@@ -620,3 +620,39 @@
+     animation: none;
+   }
+ }
++
++.exclude__legend {
++  cursor: pointer;
++  user-select: none;
++}
++
++.exclude__body {
++  margin-top: 10px;
++  display: grid;
++  gap: 12px;
++}
++
++@media (max-width: 860px) {
++  .prog__acts {
++    display: grid;
++    grid-template-columns: 1fr;
++    gap: 16px;
++  }
++  
++  .act {
++    padding-left: 10px;
++    border-left-width: 4px;
++    background: color-mix(in srgb, var(--bg-raised) 50%, transparent);
++    padding: 12px;
++    border-radius: 0 var(--r-sm) var(--r-sm) 0;
++  }
++  
++  .act__head {
++    flex-direction: column;
++    gap: 4px;
++  }
++  
++  .dossier__progs {
++    grid-template-columns: 1fr;
++  }
++}
+diff --git a/src/ui/protocol-panel.ts b/src/ui/protocol-panel.ts
+index 7763d0f..74d0b44 100644
+--- a/src/ui/protocol-panel.ts
++++ b/src/ui/protocol-panel.ts
+@@ -146,19 +146,22 @@ export function mountProtocolPanel(
+ 
+   poolReadout.className = 'readout';
+ 
+-  const exclusions = document.createElement('fieldset');
++  const exclusions = document.createElement('details');
+   exclusions.className = 'exclude';
+-  const legend = document.createElement('legend');
++  const legend = document.createElement('summary');
+   legend.className = 'exclude__legend';
+   legend.textContent = 'Keep out of the main hand';
+   exclusions.append(legend);
+ 
++  const exclusionsBody = document.createElement('div');
++  exclusionsBody.className = 'exclude__body';
++
+   for (const kind of ['ranged', 'catalyst', 'utility', 'melee'] as const) {
+     const box = document.createElement('input');
+     box.checked = config.excludedKinds.includes(kind);
+     box.addEventListener('change', emit);
+     kindInputs.set(kind, box);
+-    exclusions.append(
++    exclusionsBody.append(
+       check(
+         box,
+         KIND_LABELS[kind],
+@@ -185,7 +188,8 @@ export function mountProtocolPanel(
+     grid.append(check(box, type, `${freshnessOf(type, config).toFixed(1)}/5 unused`));
+   }
+   perType.append(grid);
+-  exclusions.append(perType);
++  exclusionsBody.append(perType);
++  exclusions.append(exclusionsBody);
+ 
+   host.replaceChildren(
+     field('Weapon classes', countInput),
+diff --git a/tests/loadout.test.ts b/tests/loadout.test.ts
+index 050a1e5..4bd6a7f 100644
+--- a/tests/loadout.test.ts
++++ b/tests/loadout.test.ts
+@@ -179,6 +179,18 @@ describe('progression', () => {
+     expect(three!.allowed).toHaveLength(1);
+   });
+ 
++  it('filters acts by earliest_zone gating', () => {
++    const prog = progressionFor('Katana', config());
++    const [one, two] = prog.acts;
++
++    for (const weapon of one!.allowed) {
++      expect(weapon.earliest_zone).toBeLessThanOrEqual(3);
++    }
++    for (const weapon of two!.allowed) {
++      expect(weapon.earliest_zone).toBeLessThanOrEqual(5);
++    }
++  });
++
+   it('never lets a locked weapon into any act', () => {
+     for (const type of ['Katana', 'Twinblade', 'Greatsword', 'Hammer']) {
+       const prog = progressionFor(type, config());
+diff --git a/tests/persist.test.ts b/tests/persist.test.ts
+index 261c9fc..a6ea1c7 100644
+--- a/tests/persist.test.ts
++++ b/tests/persist.test.ts
+@@ -87,6 +87,11 @@ describe('share encoding', () => {
+     const decoded = await decodeShare(`0${b64}`);
+     expect(decoded?.entries.map((e) => e.label)).toEqual(['Ada']);
+   });
++
++  it('rejects a payload with missing entries array', async () => {
++    const b64 = Buffer.from(JSON.stringify({ v: 1, e: null }), 'utf8').toString('base64url');
++    await expect(decodeShare(`0${b64}`)).resolves.toBeNull();
++  });
+ });
+ 
+ describe('share URLs', () => {

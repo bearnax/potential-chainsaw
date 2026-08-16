@@ -87,6 +87,11 @@ describe('share encoding', () => {
     const decoded = await decodeShare(`0${b64}`);
     expect(decoded?.entries.map((e) => e.label)).toEqual(['Ada']);
   });
+
+  it('rejects a payload with missing entries array', async () => {
+    const b64 = Buffer.from(JSON.stringify({ v: 1, e: null }), 'utf8').toString('base64url');
+    await expect(decodeShare(`0${b64}`)).resolves.toBeNull();
+  });
 });
 
 describe('share URLs', () => {

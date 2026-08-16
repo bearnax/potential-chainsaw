@@ -290,3 +290,11 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+@media (max-width: 860px) {
+  .board { gap: 10px; }
+  .cell {
+    min-height: 84px;
+    padding: 12px 14px 11px;
+  }
+}

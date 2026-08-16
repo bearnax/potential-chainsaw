@@ -59,10 +59,6 @@ const TYPE_FIXES = new Map([['Glinstone Staff', 'Glintstone Staff']]);
 
 /**
  * The sheet's "Used" column, as a 0-5 familiarity score.
- *
- * The Weight column already carries this, but it has gaps (#N/A on rows added
- * after the last pass), so the prose column is the fallback rather than the
- * other way round.
  */
 const USED_SCORES = new Map([
   ['big time', 0],
@@ -73,7 +69,23 @@ const USED_SCORES = new Map([
   ['', 5],
 ]);
 
-const rows = parseCsv(readFileSync(SOURCE, 'utf8'));
+async function loadCsv() {
+  const url = process.env.WEAPONS_CSV_URL;
+  if (url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      console.log(`Fetched weapons data from ${url}`);
+      return await res.text();
+    } catch (err) {
+      console.warn(`Failed to fetch WEAPONS_CSV_URL: ${err.message}. Falling back to local.`);
+    }
+  }
+  return readFileSync(SOURCE, 'utf8');
+}
+
+const csvText = await loadCsv();
+const rows = parseCsv(csvText);
 const header = rows.shift().map((h) => h.trim());
 const col = (name) => header.indexOf(name);
 const iName = col('Name');
@@ -81,6 +93,7 @@ const iWeight = col('Weight');
 const iType = col('Weapon Type');
 const iDlc = col('DLC?');
 const iUsed = col('Used');
+const iZone = col('earliest_zone');
 
 const weapons = [];
 const unknownUsed = new Set();
@@ -103,11 +116,15 @@ for (const row of rows) {
   const raw = Number((row[iWeight] ?? '').trim());
   const weight = Number.isFinite(raw) && raw >= 0 && raw <= 5 ? raw : familiarity;
 
+  const zoneRaw = iZone !== -1 ? Number((row[iZone] ?? '').trim()) : 1;
+  const zone = Number.isFinite(zoneRaw) && zoneRaw >= 1 && zoneRaw <= 9 ? zoneRaw : 1;
+
   weapons.push({
     name,
     type: TYPE_FIXES.get(type) ?? type,
     dlc: (row[iDlc] ?? '').includes('✅'),
     familiarity: weight,
+    earliest_zone: zone,
   });
 }
 
@@ -121,7 +138,7 @@ const str = (value) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const weaponLines = weapons
   .map(
     (w) =>
-      `  { name: ${str(w.name)}, type: ${str(w.type)}, dlc: ${w.dlc}, familiarity: ${w.familiarity} },`,
+      `  { name: ${str(w.name)}, type: ${str(w.type)}, dlc: ${w.dlc}, familiarity: ${w.familiarity}, earliest_zone: ${w.earliest_zone} },`,
   )
   .join('\n');
 
@@ -142,6 +159,7 @@ export interface Weapon {
   readonly type: string;
   readonly dlc: boolean;
   readonly familiarity: number;
+  readonly earliest_zone: number;
 }
 
 export const WEAPONS: readonly Weapon[] = [

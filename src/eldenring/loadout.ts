@@ -328,10 +328,9 @@ function ladder(members: readonly Weapon[]): Weapon[] {
 /**
  * Turn a drawn type into a three-act contract for a fresh playthrough.
  *
- * There is no acquisition-location data in the sheet and I am not going to
- * invent any, so the acts are gated on commitment rather than on map progress:
- * take what drops early, narrow to a shortlist by the midgame, and finish the
- * run on one weapon you have never used.
+ * Acts are gated on both map progress (zone availability) and commitment:
+ * take what drops early (Zone <= 3), narrow to a midgame shortlist (Zone <= 5),
+ * and finish the run on the freshest weapon regardless of zone.
  */
 export function progressionFor(type: string, config: ProtocolConfig): Progression {
   const members = membersOf(type, config);
@@ -340,24 +339,27 @@ export function progressionFor(type: string, config: ProtocolConfig): Progressio
   const open = rulings.filter((r) => r.standing === 'open').map((r) => r.weapon);
   const restricted = rulings.filter((r) => r.standing === 'restricted').map((r) => r.weapon);
 
-  // Everything worth ending on is at the top of the ladder; the shortlist is
-  // small enough to be a real constraint but not so small it depends on one
-  // drop showing up.
+  const act1Pool = [...open, ...restricted].filter((w) => w.earliest_zone <= 3);
+  
+  let shortlist = open.filter((w) => w.earliest_zone <= 5).slice(0, 3);
+  if (shortlist.length === 0) {
+    shortlist = open.slice(0, Math.min(3, open.length));
+  }
+
   const finale = open.slice(0, 1);
-  const shortlist = open.slice(0, Math.min(3, open.length));
 
   const acts: Act[] = [
     {
       name: 'Act I',
       window: 'Limgrave to Stormveil',
-      allowed: [...open, ...restricted],
-      rule: 'anything in the class that drops, including the well-used ones. Nothing is committed yet.',
+      allowed: act1Pool.length > 0 ? act1Pool : [...open, ...restricted].slice(0, 2),
+      rule: 'anything in the class available early, including well-used ones. Nothing committed yet.',
     },
     {
       name: 'Act II',
       window: 'Liurnia to the Capital',
       allowed: shortlist,
-      rule: 'drop the well-used weapons entirely and carry one of the shortlist. This is the build now.',
+      rule: 'drop the well-used weapons entirely and carry one of the midgame shortlist. This is the build now.',
     },
     {
       name: 'Act III',

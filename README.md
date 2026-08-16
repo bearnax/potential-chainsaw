@@ -13,12 +13,13 @@ and the list of weapons it is not allowed to touch.
 
 ## The protocol
 
-Four stages, drawn in order across one field of boxes.
+Five stages, drawn in order across one field of boxes.
 
 | Stage             | What it decides                                    | Where the weights come from          |
 | ----------------- | -------------------------------------------------- | ------------------------------------ |
 | Main armament     | N weapon classes (3 by default)                    | mean familiarity across the class    |
 | Ranged sidearm    | one bow, crossbow, greatbow or ballista            | same, over the ranged classes        |
+| Shield loadout    | three shields for the run                          | shield familiarity                   |
 | Arcane discipline | intelligence, faith, both, or neither              | the staff and seal rows of the sheet |
 | Status vector     | bleed, rot, poison, frost, sleep, madness, or none | flat — see below                     |
 
@@ -206,14 +207,17 @@ src/
              palette.ts            one stable hue per entry
              audio.ts              WebAudio synthesis
   eldenring/ weapons.ts            the armoury, generated from the spreadsheet
+             shields.ts            the shield rack, generated from the spreadsheet
              loadout.ts            classification, weighting, rulings, progression
-             protocol.ts           the four stages and how a run assembles
+             protocol.ts           the five stages and how a run assembles
              run.ts                the sequencer that paces a run
   ui/        panel.ts, results.ts  controls and the stage's text layer
              protocol-panel.ts     protocol config, built from the armoury
              dossier.ts            the finished run sheet
 scripts/     build-weapons.mjs     CSV -> weapons.ts
+             build-shields.mjs     CSV -> shields.ts
              weapons-source.csv    the spreadsheet, the source of truth
+             shields-source.csv    the shield spreadsheet, the source of truth
 tests/                             vitest, run headlessly in CI
 ```
 
@@ -239,6 +243,13 @@ Past roughly 40 entries no band is tall enough for a label, and the strip become
 a ramp of colour rather than a readable list. The distribution is still true and
 the winning band grows enough to show its name, but if you routinely draw from
 hundreds of entries, the Chamber or the panel's own list will serve you better.
+
+## Data Sources
+
+The Elden Ring domain data and logic in this project is derived from the work of others:
+- [Elden Ring Weapon Calculator](https://github.com/ThomasJClark/elden-ring-weapon-calculator) by Thomas Clark (MIT Licensed) – provided the underlying mathematical foundations for weapon statistics.
+- [WitchyBND](https://github.com/tremwil/WitchyBND) – the upstream tool used for data extraction.
+- The Kaggle Ultimate Dataset – utilized for bootstrapping location-based zone gating logic.
 
 ## Deployment
 
