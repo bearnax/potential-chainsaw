@@ -95,7 +95,3 @@ export function phosphorFor(index: number): Hue {
   };
 }
 
-/** Hues for a whole list, positionally spread. */
-export function paletteFor(labels: readonly string[]): Hue[] {
-  return labels.map((label, i) => hueFor(label, i));
-}

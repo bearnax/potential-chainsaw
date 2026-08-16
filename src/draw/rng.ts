@@ -9,7 +9,7 @@
 const MAX_U32 = 0x1_0000_0000;
 
 /** One uniform 32-bit integer from the platform CSPRNG. */
-export function randomUint32(): number {
+function randomUint32(): number {
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
   return buf[0]!;

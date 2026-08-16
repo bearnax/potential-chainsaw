@@ -14,7 +14,7 @@
 /** The noise alphabet. Punctuation-heavy, so noise never reads as a word. */
 export const SCRAMBLE_CHARS = 'X%#@!&*()[]:;<>+=~^?/\\';
 
-export const scrambleChar = (): string =>
+const scrambleChar = (): string =>
   SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]!;
 
 /**

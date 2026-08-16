@@ -300,7 +300,7 @@ export function rulingFor(weapon: Weapon): Ruling {
   return { weapon, standing, reason };
 }
 
-export interface Act {
+interface Act {
   readonly name: string;
   readonly window: string;
   /** What the run is allowed to hold during this act. */

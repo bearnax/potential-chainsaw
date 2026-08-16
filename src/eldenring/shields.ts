@@ -59,9 +59,3 @@ export const SHIELDS: readonly Shield[] = [
   { name: 'Twinbird Kite Shield', type: 'Small Shield', dlc: false, familiarity: 3, earliest_zone: 1 },
 ];
 
-/** Every distinct shield type in the sheet, alphabetically. */
-export const SHIELD_TYPES: readonly string[] = [
-  'Greatshield',
-  'Medium Shield',
-  'Small Shield',
-];

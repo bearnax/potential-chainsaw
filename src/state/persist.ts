@@ -138,13 +138,6 @@ export function loadProtocol(): ProtocolSave | null {
   }
 }
 
-export function clearLocal(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* see saveLocal */
-  }
-}
 
 /* ------------------------------------------------------------------ */
 /* base64url + deflate                                                 */
